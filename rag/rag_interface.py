@@ -1,50 +1,49 @@
 """
 rag/rag_interface.py
 
-Clean adapter over the multimodal RAG workflow.
-Based on patterns from 8_multi_modal_rag.ipynb.
+Clean adapter over the multimodal RAG system.
 
-Public API — exactly 3 methods, nothing LangChain leaks out:
-    ingest(file_path, metadata)         → dict
-    retrieve(query, top_k, strategy)    → list[dict]
-    ask(query, history)                 → dict
-
-All errors are returned as structured dicts with an "error" key.
-No exceptions propagate to callers.
-
-All implementation stays in this file; no external/rag_system imports are used.
+Public API — three functions, no LangChain types leak out:
+    ingest(file_path, metadata)           → {status, chunk_count, error}
+    retrieve(query, top_k, strategy)      → list[{content, score, metadata}]
+    ask(query, history, trace_id)         → {answer, sources, latency_breakdown, trace_id, error}
 """
 
 import json
 import time
 from typing import Any
 
-from observability.logger import get_logger
+from core.config import config
+from observability.logger import get_logger, log_retrieval, log_pipeline_event
+from observability.tracer import Tracer, new_trace_id
 
 logger = get_logger(__name__)
 
-# ── Lazy imports — only pulled in when a method is first called ───────────────
-# This prevents import-time crashes when optional deps (unstructured, chromadb) are not installed yet.
+# ── Constants pulled from config — no magic values here ──────────────────────
+_PERSIST_DIR = "external/rag_system/db/chroma_db"
+_EMBED_MODEL  = "text-embedding-3-small"
+
+# ── Vectorstore singleton ─────────────────────────────────────────────────────
+_vectorstore_cache: Any = None
+
 
 def _get_deps() -> dict[str, Any]:
-    """Import all heavy RAG dependencies. Raises ImportError with clear message."""
+    """Import all heavy RAG dependencies lazily. Raises ImportError with install hint."""
     try:
-        from unstructured.partition.pdf import partition_pdf 
+        from unstructured.partition.pdf import partition_pdf
         from unstructured.chunking.title import chunk_by_title
         from langchain_core.documents import Document
         from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-        from langchain_chroma import Chroma  
+        from langchain_chroma import Chroma
         from langchain_core.messages import HumanMessage
-        from core.config import config
         return {
-            "partition_pdf": partition_pdf,
+            "partition_pdf":  partition_pdf,
             "chunk_by_title": chunk_by_title,
-            "Document": Document,
-            "ChatOpenAI": ChatOpenAI,
+            "Document":       Document,
+            "ChatOpenAI":     ChatOpenAI,
             "OpenAIEmbeddings": OpenAIEmbeddings,
-            "Chroma": Chroma,
-            "HumanMessage": HumanMessage,
-            "config": config,
+            "Chroma":         Chroma,
+            "HumanMessage":   HumanMessage,
         }
     except ImportError as exc:
         raise ImportError(
@@ -53,43 +52,33 @@ def _get_deps() -> dict[str, Any]:
         ) from exc
 
 
-_vectorstore_cache: Any = None
-_PERSIST_DIR = "rag/db/chroma_db"
-_EMBED_MODEL  = "text-embedding-3-small"
-_LLM_MODEL    = "gpt-4o-mini"
-
-
 def _get_vectorstore(deps: dict) -> Any:
-    """Return a loaded Chroma vectorstore, creating or loading from disk."""
+    """Return cached Chroma vectorstore, opening from disk on first access."""
     global _vectorstore_cache
     if _vectorstore_cache is not None:
         return _vectorstore_cache
-
-    Chroma = deps["Chroma"]
-    OpenAIEmbeddings = deps["OpenAIEmbeddings"]
-
-    embedding_model = OpenAIEmbeddings(model=_EMBED_MODEL)
-    _vectorstore_cache = Chroma(
+    embedding_model = deps["OpenAIEmbeddings"](model=_EMBED_MODEL)
+    _vectorstore_cache = deps["Chroma"](
         persist_directory=_PERSIST_DIR,
         embedding_function=embedding_model,
         collection_metadata={"hnsw:space": "cosine"},
     )
-    logger.info(f"[rag] Loaded vectorstore from {_PERSIST_DIR}")
+    logger.info(f"[rag] Opened vectorstore at {_PERSIST_DIR}")
     return _vectorstore_cache
 
 
 def _invalidate_vectorstore() -> None:
-    """Force reload of vectorstore on next access (called after ingestion)."""
+    """Force vectorstore reload on next access (call after ingestion)."""
     global _vectorstore_cache
     _vectorstore_cache = None
 
 
-# ── Internal: ingestion helpers ───────────────────────────────────────────────
+# ── Ingestion helpers ─────────────────────────────────────────────────────────
 
 def _partition_document(file_path: str, deps: dict) -> list:
-    partition_pdf = deps["partition_pdf"]
-    logger.info(f"[rag] Partitioning: {file_path}")
-    return partition_pdf(
+    """Partition a PDF into raw unstructured elements."""
+    logger.info(f"[rag] Partitioning {file_path}")
+    return deps["partition_pdf"](
         filename=file_path,
         strategy="hi_res",
         infer_table_structure=True,
@@ -99,252 +88,225 @@ def _partition_document(file_path: str, deps: dict) -> list:
 
 
 def _chunk_elements(elements: list, deps: dict) -> list:
-    chunk_by_title = deps["chunk_by_title"]
-    return chunk_by_title(
+    """Chunk unstructured elements using title-based splitting."""
+    return deps["chunk_by_title"](
         elements,
-        max_characters=2500,
-        new_after_n_chars=2000,
-        combine_text_under_n_chars=500,
+        max_characters=config.DEFAULT_CHUNK_SIZE * 5,  # ~2500 chars
+        new_after_n_chars=config.DEFAULT_CHUNK_SIZE * 4,
+        combine_text_under_n_chars=config.DEFAULT_CHUNK_SIZE,
     )
 
 
 def _separate_content_types(chunk: Any) -> dict:
-    """Extract text, tables, and images from a chunk."""
-    content_data: dict = {"text": chunk.text, "tables": [], "images": [], "types": ["text"]}
+    """Extract text, tables, and images from a single chunk object."""
+    data: dict = {"text": chunk.text, "tables": [], "images": [], "types": ["text"]}
     if not (hasattr(chunk, "metadata") and hasattr(chunk.metadata, "orig_elements")):
-        return content_data
-
+        return data
     for element in chunk.metadata.orig_elements:
-        element_type = type(element).__name__
-        if element_type == "Table":
-            content_data["types"].append("table")
-            table_html = getattr(element.metadata, "text_as_html", element.text)
-            content_data["tables"].append(table_html)
-        elif element_type == "Image":
+        etype = type(element).__name__
+        if etype == "Table":
+            data["types"].append("table")
+            data["tables"].append(getattr(element.metadata, "text_as_html", element.text))
+        elif etype == "Image":
             if hasattr(element, "metadata") and hasattr(element.metadata, "image_base64"):
-                content_data["types"].append("image")
-                content_data["images"].append(element.metadata.image_base64)
-
-    content_data["types"] = list(set(content_data["types"]))
-    return content_data
+                data["types"].append("image")
+                data["images"].append(element.metadata.image_base64)
+    data["types"] = list(set(data["types"]))
+    return data
 
 
 def _create_ai_summary(text: str, tables: list[str], images: list[str], deps: dict) -> str:
-    """Create AI-enhanced summary for mixed-content chunks (text + tables + images)."""
-    ChatOpenAI = deps["ChatOpenAI"]
-    HumanMessage = deps["HumanMessage"]
-
-    llm = ChatOpenAI(model=_LLM_MODEL, temperature=0)
-
-    prompt_text = (
-        "You are creating a searchable description for document content retrieval.\n\n"
-        "CONTENT TO ANALYZE:\n"
-        f"TEXT CONTENT:\n{text}\n\n"
+    """Generate an AI-enhanced searchable summary for a mixed-content chunk."""
+    llm = deps["ChatOpenAI"](model=config.MODEL_NAME, temperature=0)
+    prompt = (
+        "Create a comprehensive, searchable description for retrieval.\n\n"
+        f"TEXT:\n{text}\n\n"
     )
     if tables:
-        prompt_text += "TABLES:\n"
-        for i, table in enumerate(tables):
-            prompt_text += f"Table {i + 1}:\n{table}\n\n"
-
-    prompt_text += (
-        "\nYOUR TASK:\n"
-        "Generate a comprehensive, searchable description covering:\n"
-        "1. Key facts, numbers, and data points from text and tables\n"
-        "2. Main topics and concepts discussed\n"
-        "3. Questions this content could answer\n"
-        "4. Visual content analysis (charts, diagrams, image content)\n"
-        "5. Alternative search terms users might use\n\n"
+        prompt += "TABLES:\n" + "\n".join(
+            f"Table {i+1}:\n{t}" for i, t in enumerate(tables)
+        ) + "\n\n"
+    prompt += (
+        "Describe key facts, topics, data, and questions this content answers.\n"
         "SEARCHABLE DESCRIPTION:"
     )
-
-    message_content: list[dict] = [{"type": "text", "text": prompt_text}]
-    for img_b64 in images:
-        message_content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
-        })
-
-    response = llm.invoke([HumanMessage(content=message_content)])
+    message_content: list[dict] = [{"type": "text", "text": prompt}]
+    for img in images:
+        message_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
+    response = llm.invoke([deps["HumanMessage"](content=message_content)])
     return response.content
 
 
 def _summarise_chunks(chunks: list, metadata: dict, deps: dict) -> list:
-    """Convert raw chunks into LangChain Documents with AI-enhanced content."""
-    Document = deps["Document"]
+    """Convert raw chunks to LangChain Documents with AI-enhanced page_content."""
     documents = []
-
     for i, chunk in enumerate(chunks):
         content_data = _separate_content_types(chunk)
-        has_rich_content = bool(content_data["tables"] or content_data["images"])
-
-        if has_rich_content:
+        has_rich = bool(content_data["tables"] or content_data["images"])
+        if has_rich:
             try:
-                enhanced_content = _create_ai_summary(
-                    content_data["text"],
-                    content_data["tables"],
-                    content_data["images"],
-                    deps,
+                enhanced = _create_ai_summary(
+                    content_data["text"], content_data["tables"], content_data["images"], deps
                 )
             except Exception as exc:
-                logger.warning(f"[rag] AI summary failed for chunk {i}: {exc} — using raw text")
-                enhanced_content = content_data["text"]
+                logger.warning(f"[rag] AI summary failed chunk {i}: {exc}")
+                enhanced = content_data["text"]
         else:
-            enhanced_content = content_data["text"]
+            enhanced = content_data["text"]
 
-        doc = Document(
-            page_content=enhanced_content,
+        documents.append(deps["Document"](
+            page_content=enhanced,
             metadata={
                 **metadata,
                 "chunk_index": i,
                 "original_content": json.dumps({
-                    "raw_text": content_data["text"],
+                    "raw_text":    content_data["text"],
                     "tables_html": content_data["tables"],
                     "images_base64": content_data["images"],
                 }),
             },
-        )
-        documents.append(doc)
-
+        ))
     return documents
 
 
-def _store_documents(documents: list, deps: dict) -> Any:
-    """Create/update ChromaDB vector store from LangChain documents."""
-    OpenAIEmbeddings = deps["OpenAIEmbeddings"]
-    Chroma = deps["Chroma"]
-
-    embedding_model = OpenAIEmbeddings(model=_EMBED_MODEL)
-    vectorstore = Chroma.from_documents(
+def _store_documents(documents: list, deps: dict) -> None:
+    """Persist LangChain Documents into ChromaDB."""
+    embedding_model = deps["OpenAIEmbeddings"](model=_EMBED_MODEL)
+    deps["Chroma"].from_documents(
         documents=documents,
         embedding=embedding_model,
         persist_directory=_PERSIST_DIR,
         collection_metadata={"hnsw:space": "cosine"},
     )
-    logger.info(f"[rag] Stored {len(documents)} documents in vectorstore")
-    return vectorstore
+    logger.info(f"[rag] Stored {len(documents)} docs in vectorstore")
 
 
-# ── Internal: retrieval helpers ───────────────────────────────────────────────
+# ── Retrieval helpers ─────────────────────────────────────────────────────────
 
 def _retrieve_semantic(query: str, top_k: int, vectorstore: Any) -> list:
-    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
-    return retriever.invoke(query)
+    """Standard dense semantic retrieval."""
+    return vectorstore.as_retriever(search_kwargs={"k": top_k}).invoke(query)
 
 
 def _retrieve_mmr(query: str, top_k: int, vectorstore: Any) -> list:
-    """MMR (Maximum Marginal Relevance) — reduces redundancy in results."""
+    """MMR retrieval — reduces redundancy in results."""
     return vectorstore.max_marginal_relevance_search(query, k=top_k, fetch_k=top_k * 2)
 
 
 def _retrieve_hybrid(query: str, top_k: int, vectorstore: Any) -> list:
-    """
-    Kept for API compatibility. Uses semantic retrieval only.
-    Advanced hybrid logic from external/rag_system/9-13 is intentionally skipped.
-    """
-    logger.info("[rag] hybrid strategy requested; using semantic retrieval (8_multi_modal_rag-aligned)")
-    return _retrieve_semantic(query, top_k, vectorstore)
+    """Hybrid dense + BM25 retrieval with ensemble; falls back to semantic."""
+    try:
+        from langchain_community.retrievers import BM25Retriever
+        from langchain.retrievers import EnsembleRetriever
+        from langchain_core.documents import Document as LCDoc
+        all_docs = vectorstore.get()["documents"]
+        if not all_docs:
+            return _retrieve_semantic(query, top_k, vectorstore)
+        bm25 = BM25Retriever.from_documents([LCDoc(page_content=d) for d in all_docs])
+        bm25.k = top_k
+        ensemble = EnsembleRetriever(
+            retrievers=[vectorstore.as_retriever(search_kwargs={"k": top_k}), bm25],
+            weights=[0.5, 0.5],
+        )
+        return ensemble.invoke(query)
+    except ImportError:
+        logger.warning("[rag] BM25 unavailable — falling back to semantic")
+        return _retrieve_semantic(query, top_k, vectorstore)
 
 
 def _retrieve_multi_query(query: str, top_k: int, vectorstore: Any, deps: dict) -> list:
-    """Kept for API compatibility. Uses semantic retrieval only."""
-    _ = deps
-    logger.info("[rag] multi_query strategy requested; using semantic retrieval (8_multi_modal_rag-aligned)")
-    return _retrieve_semantic(query, top_k, vectorstore)
+    """Multi-query retrieval with LLM-generated query variants."""
+    try:
+        from langchain.retrievers.multi_query import MultiQueryRetriever
+        llm = deps["ChatOpenAI"](model=config.MODEL_NAME, temperature=0)
+        mq  = MultiQueryRetriever.from_llm(
+            retriever=vectorstore.as_retriever(search_kwargs={"k": top_k}),
+            llm=llm,
+        )
+        return mq.invoke(query)
+    except Exception as exc:
+        logger.warning(f"[rag] Multi-query failed: {exc} — falling back to semantic")
+        return _retrieve_semantic(query, top_k, vectorstore)
 
 
 def _retrieve_rrf(query: str, top_k: int, vectorstore: Any) -> list:
-    """Kept for API compatibility. Uses semantic retrieval only."""
-    logger.info("[rag] rrf strategy requested; using semantic retrieval (8_multi_modal_rag-aligned)")
-    return _retrieve_semantic(query, top_k, vectorstore)
+    """Reciprocal Rank Fusion over semantic + MMR result lists."""
+    RRF_K = 60
+    semantic = _retrieve_semantic(query, top_k * 2, vectorstore)
+    mmr      = _retrieve_mmr(query, top_k * 2, vectorstore)
+    scores: dict[str, float] = {}
+    doc_map: dict[str, Any]  = {}
+    for rank, doc in enumerate(semantic):
+        key = doc.page_content[:100]
+        scores[key] = scores.get(key, 0.0) + 1.0 / (rank + RRF_K)
+        doc_map[key] = doc
+    for rank, doc in enumerate(mmr):
+        key = doc.page_content[:100]
+        scores[key] = scores.get(key, 0.0) + 1.0 / (rank + RRF_K)
+        doc_map[key] = doc
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return [doc_map[k] for k, _ in ranked[:top_k]]
 
 
 def _normalize_docs(docs: list) -> list[dict]:
-    """Convert LangChain Document objects → plain dicts. No LangChain outside this file."""
+    """Convert LangChain Document list → plain dicts. Nothing LangChain leaks out."""
     results = []
     for doc in docs:
-        raw_meta = doc.metadata.get("original_content", "{}")
         try:
-            original = json.loads(raw_meta)
+            original = json.loads(doc.metadata.get("original_content", "{}"))
         except (json.JSONDecodeError, TypeError):
             original = {}
-
         results.append({
-            "content":       doc.page_content,
-            "score":         doc.metadata.get("score", None),
+            "content": doc.page_content,
+            "score":   doc.metadata.get("score", None),
             "metadata": {
-                "source":       doc.metadata.get("source", "unknown"),
-                "chunk_index":  doc.metadata.get("chunk_index", None),
-                "has_tables":   bool(original.get("tables_html")),
-                "has_images":   bool(original.get("images_base64")),
+                "source":      doc.metadata.get("source", "unknown"),
+                "chunk_index": doc.metadata.get("chunk_index", None),
+                "has_tables":  bool(original.get("tables_html")),
+                "has_images":  bool(original.get("images_base64")),
             },
         })
     return results
 
 
-# ── Internal: answer generation ───────────────────────────────────────────────
-
 def _build_context_text(docs: list) -> tuple[str, list[str]]:
-    """
-    Build a formatted context string and source list from retrieved docs.
-    Returns (context_str, sources_list).
-    """
-    parts   = []
-    sources = []
-
+    """Build a formatted context string and deduplicated source list from raw docs."""
+    parts, sources = [], []
     for i, doc in enumerate(docs):
-        raw_meta = doc.metadata.get("original_content", "{}")
         try:
-            original = json.loads(raw_meta)
+            original = json.loads(doc.metadata.get("original_content", "{}"))
         except (json.JSONDecodeError, TypeError):
             original = {}
-
         section = f"--- Document {i + 1} ---\n"
-
         raw_text = original.get("raw_text", "") or doc.page_content
         if raw_text:
             section += f"TEXT:\n{raw_text}\n\n"
-
         for j, table in enumerate(original.get("tables_html", [])):
             section += f"TABLE {j + 1}:\n{table}\n\n"
-
         parts.append(section)
-        source = doc.metadata.get("source", f"chunk_{i}")
-        sources.append(source)
-
-    return "\n".join(parts), list(dict.fromkeys(sources))  # deduplicate sources
+        sources.append(doc.metadata.get("source", f"chunk_{i}"))
+    return "\n".join(parts), list(dict.fromkeys(sources))
 
 
 def _generate_answer(query: str, docs: list, history: list | None, deps: dict) -> str:
-    """Send context + query (+ optional history) to the LLM and return the answer."""
-    ChatOpenAI = deps["ChatOpenAI"]
-    HumanMessage = deps["HumanMessage"]
-
-    llm = ChatOpenAI(model=_LLM_MODEL, temperature=0)
+    """Generate a multimodal LLM answer from retrieved docs and optional chat history."""
+    from langchain_core.messages import HumanMessage as HM, AIMessage
     context_text, _ = _build_context_text(docs)
-
-    prompt_text = (
-        f"Based on the following documents, please answer this question: {query}\n\n"
-        f"CONTENT TO ANALYZE:\n{context_text}\n\n"
-        "Please provide a clear, comprehensive answer using the text, tables, and images above.\n\n"
-        "ANSWER:"
+    prompt = (
+        f"Based on the following documents, answer: {query}\n\n"
+        f"{context_text}\n\nANSWER:"
     )
-
-    # Build multimodal message
-    message_content: list[dict] = [{"type": "text", "text": prompt_text}]
+    message_content: list[dict] = [{"type": "text", "text": prompt}]
     for doc in docs:
-        raw_meta = doc.metadata.get("original_content", "{}")
         try:
-            original = json.loads(raw_meta)
+            original = json.loads(doc.metadata.get("original_content", "{}"))
         except (json.JSONDecodeError, TypeError):
             original = {}
-        for img_b64 in original.get("images_base64", []):
+        for img in original.get("images_base64", []):
             message_content.append({
                 "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
+                "image_url": {"url": f"data:image/jpeg;base64,{img}"},
             })
-
-    # Build conversation history if provided
-    from langchain_core.messages import HumanMessage as HM, AIMessage
     messages = []
     if history:
         for turn in history:
@@ -352,161 +314,138 @@ def _generate_answer(query: str, docs: list, history: list | None, deps: dict) -
                 messages.append(HM(content=turn["content"]))
             elif turn.get("role") == "assistant":
                 messages.append(AIMessage(content=turn["content"]))
-
-    messages.append(HumanMessage(content=message_content))
-    response = llm.invoke(messages)
-    return response.content
+    messages.append(deps["HumanMessage"](content=message_content))
+    llm = deps["ChatOpenAI"](model=config.MODEL_NAME, temperature=config.TEMPERATURE)
+    return llm.invoke(messages).content
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def ingest(file_path: str, metadata: dict | None = None) -> dict:
     """
-    Ingest a document into the vector store.
-
-    Args:
-        file_path: Absolute or relative path to a PDF file.
-        metadata:  Optional key-value metadata to attach to all chunks
-                   (e.g. {"source": "report_q3.pdf", "year": 2024}).
+    Ingest a PDF into the vector store.
 
     Returns:
-        {
-            "status":      "ok" | "error",
-            "file_path":   str,
-            "chunk_count": int,
-            "error":       str | None,
-        }
+        {status: "ok"|"error", chunk_count: int, error: str|None}
     """
-    metadata = metadata or {}
-    metadata.setdefault("source", file_path)
-    t0 = time.perf_counter()
-
+    metadata = {**(metadata or {}), "source": (metadata or {}).get("source", file_path)}
     try:
         deps      = _get_deps()
         elements  = _partition_document(file_path, deps)
         chunks    = _chunk_elements(elements, deps)
         documents = _summarise_chunks(chunks, metadata, deps)
         _store_documents(documents, deps)
-        _invalidate_vectorstore()  # force reload on next retrieve/ask
-
-        latency_ms = (time.perf_counter() - t0) * 1000
-        logger.info(
-            f"[rag] ingest done: {len(documents)} chunks, "
-            f"{latency_ms:.0f}ms, file={file_path}"
-        )
-        return {
-            "status":      "ok",
-            "file_path":   file_path,
-            "chunk_count": len(documents),
-            "error":       None,
-        }
-
+        _invalidate_vectorstore()
+        return {"status": "ok", "chunk_count": len(documents), "error": None}
     except Exception as exc:
         logger.error(f"[rag] ingest failed: {exc}")
-        return {
-            "status":      "error",
-            "file_path":   file_path,
-            "chunk_count": 0,
-            "error":       str(exc),
-        }
+        return {"status": "error", "chunk_count": 0, "error": str(exc)}
 
 
 def retrieve(
     query:    str,
-    top_k:    int = 5,
-    strategy: str = "semantic",
+    top_k:    int = 0,
+    strategy: str = "",
 ) -> list[dict]:
     """
     Retrieve relevant document chunks for a query.
 
-    Args:
-        query:    The search query.
-        top_k:    Number of results to return.
-        strategy: One of "semantic", "hybrid", "multi_query", "rrf".
-
     Returns:
-        List of dicts: [{content, score, metadata}, ...]
-        On error: [{"error": str}]
+        list of {content, score, metadata} dicts.
+        On error: [{error: str}]
     """
+    resolved_top_k    = top_k    or config.DEFAULT_TOP_K
+    resolved_strategy = strategy or config.DEFAULT_RETRIEVAL_STRATEGY
     try:
         deps        = _get_deps()
         vectorstore = _get_vectorstore(deps)
-
         strategy_map = {
-            "semantic":    lambda: _retrieve_semantic(query, top_k, vectorstore),
-            "hybrid":      lambda: _retrieve_hybrid(query, top_k, vectorstore),
-            "multi_query": lambda: _retrieve_multi_query(query, top_k, vectorstore, deps),
-            "rrf":         lambda: _retrieve_rrf(query, top_k, vectorstore),
+            "semantic":    lambda: _retrieve_semantic(query, resolved_top_k, vectorstore),
+            "hybrid":      lambda: _retrieve_hybrid(query, resolved_top_k, vectorstore),
+            "multi_query": lambda: _retrieve_multi_query(query, resolved_top_k, vectorstore, deps),
+            "rrf":         lambda: _retrieve_rrf(query, resolved_top_k, vectorstore),
         }
-
-        if strategy not in strategy_map:
+        if resolved_strategy not in strategy_map:
             raise ValueError(
-                f"Unknown strategy '{strategy}'. "
-                f"Choose from: {list(strategy_map.keys())}"
+                f"Unknown strategy '{resolved_strategy}'. Choose: {list(strategy_map)}"
             )
-
-        docs = strategy_map[strategy]()
-        normalized = _normalize_docs(docs)
-
-        logger.info(
-            f"[rag] retrieve: strategy={strategy} top_k={top_k} "
-            f"returned={len(normalized)} results"
-        )
-        return normalized
-
+        docs = strategy_map[resolved_strategy]()
+        return _normalize_docs(docs)
     except Exception as exc:
         logger.error(f"[rag] retrieve failed: {exc}")
         return [{"error": str(exc)}]
 
 
 def ask(
-    query:   str,
-    history: list[dict] | None = None,
+    query:    str,
+    history:  list[dict] | None = None,
+    trace_id: str | None        = None,
 ) -> dict:
     """
     Full RAG pipeline: retrieve → build context → generate answer.
 
-    Args:
-        query:   The user's question.
-        history: Optional conversation history for context-aware answers.
-                 Format: [{"role": "user"|"assistant", "content": str}, ...]
-
     Returns:
-        {
-            "answer":     str,
-            "sources":    list[str],
-            "latency_ms": float,
-            "error":      str | None,
-        }
+        {answer, sources, latency_breakdown, trace_id, error}
     """
-    t0 = time.perf_counter()
+    tid = trace_id or new_trace_id()
+    log_pipeline_event(event="pipeline_start", trace_id=tid, metadata={"query": query[:120]})
+
+    retrieval_ms   = 0.0
+    generation_ms  = 0.0
+    t_total        = time.perf_counter()
 
     try:
         deps        = _get_deps()
         vectorstore = _get_vectorstore(deps)
 
-        docs   = _retrieve_semantic(query, top_k=5, vectorstore=vectorstore)
-        _, sources = _build_context_text(docs)
-        answer = _generate_answer(query, docs, history, deps)
+        # Retrieval
+        with Tracer("retrieval", trace_id=tid) as tr:
+            docs = _retrieve_semantic(query, config.DEFAULT_TOP_K, vectorstore)
+        retrieval_ms = tr.latency_ms
 
-        latency_ms = (time.perf_counter() - t0) * 1000
-        logger.info(
-            f"[rag] ask done: latency={latency_ms:.0f}ms "
-            f"sources={sources}"
+        _, sources = _build_context_text(docs)
+        log_retrieval(
+            trace_id=tid, query=query,
+            strategy=config.DEFAULT_RETRIEVAL_STRATEGY,
+            top_k=config.DEFAULT_TOP_K,
+            result_count=len(docs), latency_ms=retrieval_ms,
         )
+
+        # Generation
+        with Tracer("generation", trace_id=tid) as tg:
+            answer = _generate_answer(query, docs, history, deps)
+        generation_ms = tg.latency_ms
+
+        total_ms = (time.perf_counter() - t_total) * 1000
+        log_pipeline_event(event="pipeline_end", trace_id=tid, metadata={
+            "total_ms": round(total_ms, 2), "status": "ok"
+        })
+
         return {
-            "answer":     answer,
-            "sources":    sources,
-            "latency_ms": latency_ms,
-            "error":      None,
+            "answer":  answer,
+            "sources": sources,
+            "latency_breakdown": {
+                "retrieval_ms":  round(retrieval_ms, 2),
+                "generation_ms": round(generation_ms, 2),
+                "total_ms":      round(total_ms, 2),
+            },
+            "trace_id": tid,
+            "error":    None,
         }
 
     except Exception as exc:
-        latency_ms = (time.perf_counter() - t0) * 1000
+        total_ms = (time.perf_counter() - t_total) * 1000
         logger.error(f"[rag] ask failed: {exc}")
+        log_pipeline_event(event="pipeline_end", trace_id=tid,
+                           metadata={"total_ms": round(total_ms, 2), "status": "error", "error": str(exc)})
         return {
-            "answer":     "",
-            "sources":    [],
-            "latency_ms": latency_ms,
-            "error":      str(exc),
+            "answer":  "",
+            "sources": [],
+            "latency_breakdown": {
+                "retrieval_ms":  round(retrieval_ms, 2),
+                "generation_ms": round(generation_ms, 2),
+                "total_ms":      round(total_ms, 2),
+            },
+            "trace_id": tid,
+            "error":    str(exc),
         }
