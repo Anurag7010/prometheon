@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { Divider } from "@/components/ui/Divider";
 import { Stack } from "@/components/ui/Stack";
+import { setAccessToken } from "@/hooks/useAuth";
 
 interface FormState {
   email: string;
@@ -57,7 +58,7 @@ export function RegisterForm() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   function handleChange(field: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,6 +71,7 @@ export function RegisterForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitted(true);
+    setServerError(null);
 
     const errs = validate(form);
     setErrors(errs);
@@ -77,11 +79,23 @@ export function RegisterForm() {
 
     setLoading(true);
     try {
-      // Stub — on auth day: POST to /api/auth/register
-      setSuccess(true);
-      // Redirect to login after 2 seconds so user sees the success message
-      setTimeout(() => router.push("/login"), 2000);
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.message ?? "Registration failed");
+        return;
+      }
+
+      setAccessToken(data.accessToken);
+      router.push("/dashboard");
     } catch {
+      setServerError("Network error — please try again");
+    } finally {
       setLoading(false);
     }
   }
@@ -101,63 +115,66 @@ export function RegisterForm() {
             Create account
           </h2>
 
-          {success && (
-            <Alert variant="success" title="Account created!" className="mb-6">
-              Redirecting you to sign in...
+          {serverError && (
+            <Alert
+              variant="error"
+              className="mb-6"
+              dismissible
+              onDismiss={() => setServerError(null)}
+            >
+              {serverError}
             </Alert>
           )}
 
-          {!success && (
-            <form onSubmit={handleSubmit} noValidate>
-              <Stack direction="column" gap={4}>
-                <Input
-                  label="Email"
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handleChange("email")}
-                  error={submitted ? errors.email : undefined}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  fullWidth
-                />
+          <form onSubmit={handleSubmit} noValidate>
+            <Stack direction="column" gap={4}>
+              <Input
+                label="Email"
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange("email")}
+                error={submitted ? errors.email : undefined}
+                placeholder="you@example.com"
+                autoComplete="email"
+                fullWidth
+              />
 
-                <Input
-                  label="Password"
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange("password")}
-                  error={submitted ? errors.password : undefined}
-                  placeholder="Min. 8 characters, at least 1 number"
-                  autoComplete="new-password"
-                  fullWidth
-                />
+              <Input
+                label="Password"
+                type="password"
+                name="password"
+                value={form.password}
+                onChange={handleChange("password")}
+                error={submitted ? errors.password : undefined}
+                placeholder="Min. 8 characters, at least 1 number"
+                autoComplete="new-password"
+                fullWidth
+              />
 
-                <Input
-                  label="Confirm password"
-                  type="password"
-                  name="confirmPassword"
-                  value={form.confirmPassword}
-                  onChange={handleChange("confirmPassword")}
-                  error={submitted ? errors.confirmPassword : undefined}
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  fullWidth
-                />
+              <Input
+                label="Confirm password"
+                type="password"
+                name="confirmPassword"
+                value={form.confirmPassword}
+                onChange={handleChange("confirmPassword")}
+                error={submitted ? errors.confirmPassword : undefined}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                fullWidth
+              />
 
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  loading={loading}
-                  className="w-full mt-2"
-                >
-                  Create account
-                </Button>
-              </Stack>
-            </form>
-          )}
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                loading={loading}
+                className="w-full mt-2"
+              >
+                Create account
+              </Button>
+            </Stack>
+          </form>
 
           <Divider label="or" className="my-6" />
 

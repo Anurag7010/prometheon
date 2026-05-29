@@ -38,6 +38,10 @@ export const users = pgTable('users', {
     .notNull()
     .unique(),
 
+  passwordHash: text('password_hash').notNull(),
+
+  tokenVersion: integer('token_version').default(0).notNull(),
+
   createdAt: timestamp('created_at', {
     // timestamptz — always store with timezone, always query in UTC
     withTimezone: true,
@@ -151,8 +155,12 @@ export const queriesRelations = relations(queries, ({ one }) => ({
 // INFERRED TYPES — use these everywhere, never write types manually
 // ============================================================
 
-export type User = typeof users.$inferSelect
+// User excludes passwordHash — never send hash to client
+export type User = Omit<typeof users.$inferSelect, 'passwordHash' | 'tokenVersion'>
 export type NewUser = typeof users.$inferInsert
+
+// Internal type used only in auth paths that need to verify credentials
+export type UserWithHash = typeof users.$inferSelect
 
 export type Document = typeof documents.$inferSelect
 export type NewDocument = typeof documents.$inferInsert

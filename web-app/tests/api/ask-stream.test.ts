@@ -5,6 +5,11 @@ import { makeRequest, makeAuthRequest, generateTestToken, TEST_USER_ID } from '.
 // server-only guard would throw in jsdom — stub it out
 vi.mock('server-only', () => ({}))
 
+// lib/jwt uses jose which has a cross-realm Uint8Array issue in vitest VM isolation.
+// Replace with a Node.js crypto implementation so withAuth can verify test tokens.
+import { jwtMock } from '../setup/jwt-mock'
+vi.mock('../../lib/jwt', () => jwtMock())
+
 // Mock backend client — streaming route tests don't call Python
 vi.mock('../../lib/backend-client', () => ({
   backendClient: {

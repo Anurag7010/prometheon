@@ -6,8 +6,11 @@ import { RequestContext } from '../../lib/middleware/types'
 // Fixed test user ID — used when no specific userId needed
 export const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
-// Must match the withAuth default exactly so test tokens pass jwtVerify
-const JWT_SECRET_STRING = process.env.JWT_SECRET ?? 'dev-secret-change-in-production'
+const JWT_SECRET_BASE = process.env.JWT_SECRET ?? 'dev-secret-change-in-production'
+// Access token secret must match lib/jwt.ts — JWT_SECRET + '_access'
+const ACCESS_TOKEN_SECRET = JWT_SECRET_BASE + '_access'
+
+export const TEST_USER_EMAIL = 'test@example.com'
 
 interface RequestOptions {
   method?: string
@@ -31,13 +34,17 @@ function base64url(input: string | Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-export async function generateTestToken(userId = TEST_USER_ID): Promise<string> {
+export async function generateTestToken(
+  userId = TEST_USER_ID,
+  email = TEST_USER_EMAIL
+): Promise<string> {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const exp = Math.floor(Date.now() / 1000) + 3600
-  const payload = base64url(JSON.stringify({ sub: userId, exp }))
+  // Payload must include type: 'access' and email to match verifyAccessToken expectations
+  const payload = base64url(JSON.stringify({ sub: userId, email, type: 'access', exp }))
   const data = `${header}.${payload}`
   const sig = base64url(
-    createHmac('sha256', JWT_SECRET_STRING).update(data).digest()
+    createHmac('sha256', ACCESS_TOKEN_SECRET).update(data).digest()
   )
   return `${data}.${sig}`
 }

@@ -25,7 +25,20 @@ Three interconnected systems:
   - 34 Python API tests, 22 SSE parser tests, 10 stream route tests — all passing
   - 2 bugs found and fixed: AskRequest min_length=1, logging.LogRecord filename conflict
   - Smoke test (test_smoke.py) skips automatically when server not running
-- Next: Day 8 — Real JWT authentication (replacing stubbed getSession)
+- Day 19 (Day 8): Authentication — COMPLETE
+  - bcrypt password hashing (lib/password.ts, cost factor 12)
+  - JWT sign/verify with jose, separate access/refresh secrets (lib/jwt.ts)
+  - Real getSession(), createSessionCookies(), clearSessionCookies() (lib/auth.ts)
+  - Access token: 15min, stored in memory + cookie for Server Components
+  - Refresh token: 7d, HttpOnly cookie restricted to /api/auth/refresh
+  - Auth routes: POST /api/auth/register, login, logout, refresh
+  - withAuth middleware updated to use jose verifyAccessToken
+  - useAuth hook with auto-refresh every 14min (hooks/useAuth.ts)
+  - Login and register pages call real endpoints
+  - backend-client.ts forwards X-User-ID header to Python backend
+  - 17 JWT tests, 10 password tests, 13 auth route tests — all passing
+  - Timing attack prevention in login (always calls verifyPassword)
+- Next: Day 9 — Caching + Performance + AI Observability
 
 ## Project Structure
 
@@ -184,8 +197,9 @@ cd web-app && npm test
 
 <!-- Update this section as issues are found and resolved -->
 
-- Auth is still stubbed — getSession() returns mock session — fixing on Day 8
 - Smoke test requires manual server startup — not automated yet
+- Python backend trusts X-User-ID header from Next.js (no direct JWT verification on Python side yet)
+- Jose has cross-realm Uint8Array issues in vitest VM — tests mock lib/jwt using Node.js crypto (tests/setup/jwt-mock.ts)
 
 ## What Claude Code Should Do on Every Session Start
 

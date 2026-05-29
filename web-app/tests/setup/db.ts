@@ -32,6 +32,7 @@ export async function seedUser(overrides: Partial<schema.NewUser> = {}): Promise
     .insert(users)
     .values({
       email: `test-${Date.now()}@example.com`,
+      passwordHash: '$2b$12$test-hash-placeholder-for-seeding',
       ...overrides,
     })
     .returning()

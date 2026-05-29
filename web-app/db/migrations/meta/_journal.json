@@ -8,6 +8,13 @@
       "when": 1777198878822,
       "tag": "0000_wandering_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780077649789,
+      "tag": "0001_common_frank_castle",
+      "breakpoints": true
     }
   ]
 }

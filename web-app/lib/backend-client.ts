@@ -113,6 +113,7 @@ class BackendClient {
       strategy?: string
       history?: Array<{ role: string; content: string }>
       traceId?: string
+      userId?: string
     } = {}
   ): Promise<AskResponse> {
     const raw = await this.request<PythonAskResponse>('/ask', {
@@ -124,6 +125,7 @@ class BackendClient {
         history: options.history ?? [],
       }),
       traceId: options.traceId,
+      userId: options.userId,
     })
     return toAskResponse(raw)
   }
@@ -135,6 +137,7 @@ class BackendClient {
       strategy?: string
       history?: Array<{ role: string; content: string }>
       traceId?: string
+      userId?: string
     } = {}
   ): Promise<ReadableStream<Uint8Array>> {
     const url = `${this.baseUrl}/ask/stream`
@@ -143,6 +146,7 @@ class BackendClient {
       'Content-Type': 'application/json',
     }
     if (options.traceId) headers['X-Request-ID'] = options.traceId
+    if (options.userId) headers['X-User-ID'] = options.userId
 
     let response: Response
     try {
@@ -186,7 +190,8 @@ class BackendClient {
     file: Blob,
     filename: string,
     metadata: Record<string, unknown> = {},
-    traceId?: string
+    traceId?: string,
+    userId?: string
   ): Promise<BackendIngestResult> {
     const formData = new FormData()
     formData.append('file', file, filename)
@@ -196,6 +201,7 @@ class BackendClient {
       method: 'POST',
       formData,
       traceId,
+      userId,
     })
     return toIngestResult(raw)
   }
@@ -206,6 +212,7 @@ class BackendClient {
       topK?: number
       strategy?: string
       traceId?: string
+      userId?: string
     } = {}
   ): Promise<RetrieveResponse> {
     const params = new URLSearchParams({
@@ -216,6 +223,7 @@ class BackendClient {
     const raw = await this.request<PythonRetrieveResponse>(`/retrieve?${params}`, {
       method: 'GET',
       traceId: options.traceId,
+      userId: options.userId,
     })
     return toRetrieveResponse(raw)
   }
@@ -237,6 +245,7 @@ class BackendClient {
       formData?: FormData
       traceId?: string
       timeoutMs?: number
+      userId?: string
     }
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
@@ -245,6 +254,7 @@ class BackendClient {
     }
     if (options.traceId) headers['X-Request-ID'] = options.traceId
     if (options.body) headers['Content-Type'] = 'application/json'
+    if (options.userId) headers['X-User-ID'] = options.userId
 
     const controller = new AbortController()
     const timeoutId = setTimeout(

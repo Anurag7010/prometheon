@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { Divider } from "@/components/ui/Divider";
 import { Stack } from "@/components/ui/Stack";
-import { createSessionCookie } from "@/lib/auth";
+import { setAccessToken } from "@/hooks/useAuth";
 
 interface FormState {
   email: string;
@@ -29,7 +29,6 @@ export function LoginForm() {
 
   const [form, setForm] = useState<FormState>({ email: "", password: "" });
   const [errors, setErrors] = useState<FormErrors>({});
-  // submitted: true after first submit attempt — show errors only then
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -49,7 +48,6 @@ export function LoginForm() {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       const updated = { ...form, [field]: e.target.value };
       setForm(updated);
-      // Revalidate on change only after first submit — avoids premature errors
       if (submitted) setErrors(validate(updated));
     };
   }
@@ -65,13 +63,23 @@ export function LoginForm() {
 
     setLoading(true);
     try {
-      // Stub — on auth day: POST to /api/auth/login, receive JWT
-      await createSessionCookie("mock-user-id", form.email);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setServerError(data.message ?? "Sign in failed");
+        return;
+      }
+
+      setAccessToken(data.accessToken);
       router.push("/dashboard");
     } catch {
-      setServerError(
-        "Sign in failed. Please check your credentials and try again.",
-      );
+      setServerError("Network error — please try again");
+    } finally {
       setLoading(false);
     }
   }

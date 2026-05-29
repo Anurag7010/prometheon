@@ -1,47 +1,99 @@
 'use server'
-// server-only: this module will throw a build error if imported by a Client Component
-// Prevents database credentials and server logic from being bundled into the browser
 import 'server-only'
-// import { cookies } from 'next/headers'
-// ↑ Will be used in production auth — commented out for stub implementation
+
+import { cookies, headers } from 'next/headers'
+import {
+  verifyAccessToken,
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from './jwt'
 
 export type Session = {
   userId: string
   email: string
+  accessToken: string
 }
 
-/**
- * getSession — reads session from cookie and returns user info.
- * Real implementation: decrypt a signed JWT from the cookie,
- * verify it against the JWT_SECRET, and return the payload.
- * For now: returns a mock session so layouts and pages work during development.
- */
+const REFRESH_TOKEN_COOKIE = 'refresh_token'
+const ACCESS_TOKEN_COOKIE = 'access_token'
+
 export async function getSession(): Promise<Session | null> {
-  // Stub — always returns a mock session
-  // On auth day: read cookies().get('session'), decrypt JWT, return payload or null
-  return {
-    userId: '00000000-0000-0000-0000-000000000001',
-    email: 'dev@aiproduct.com',
+  // Try Authorization header first (API routes, forwarded requests)
+  const headerList = await headers()
+  const authHeader = headerList.get('authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+
+  if (bearerToken) {
+    const payload = await verifyAccessToken(bearerToken)
+    if (payload) {
+      return { userId: payload.sub, email: payload.email, accessToken: bearerToken }
+    }
   }
+
+  // Fallback: access_token cookie (set during login/register for Server Component reads)
+  const cookieStore = await cookies()
+  const cookieToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value
+  if (!cookieToken) return null
+
+  const payload = await verifyAccessToken(cookieToken)
+  if (!payload) return null
+
+  return { userId: payload.sub, email: payload.email, accessToken: cookieToken }
 }
 
-/**
- * createSessionCookie — signs a JWT and sets it as an httpOnly cookie.
- * Real implementation: sign { userId, email } with JWT_SECRET,
- * set as httpOnly, secure, sameSite=lax cookie with expiry.
- * For now: no-op — cookie is not actually set.
- */
-export async function createSessionCookie(
+export async function createSessionCookies(
   userId: string,
   email: string
-): Promise<void> {
-  // On auth day: cookies().set('session', signedJwt, { httpOnly: true, secure: true })
+): Promise<{ accessToken: string }> {
+  const accessToken = await signAccessToken(userId, email)
+  const refreshToken = await signRefreshToken(userId)
+
+  const cookieStore = await cookies()
+
+  // Refresh token — HttpOnly, restricted to refresh endpoint
+  cookieStore.set(REFRESH_TOKEN_COOKIE, refreshToken, {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/api/auth/refresh',
+    maxAge: 7 * 24 * 60 * 60,
+  })
+
+  // Access token cookie — readable by Server Components (not HttpOnly)
+  // Client also keeps a copy in memory for zero-cookie API calls
+  cookieStore.set(ACCESS_TOKEN_COOKIE, accessToken, {
+    httpOnly: false,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 15 * 60,
+  })
+
+  return { accessToken }
 }
 
-/**
- * clearSessionCookie — deletes the session cookie on sign out.
- * Real implementation: cookies().delete('session')
- */
-export async function clearSessionCookie(): Promise<void> {
-  // On auth day: cookies().delete('session')
+export async function clearSessionCookies(): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.set(REFRESH_TOKEN_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/api/auth/refresh',
+    maxAge: 0,
+  })
+  cookieStore.set(ACCESS_TOKEN_COOKIE, '', {
+    httpOnly: false,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 0,
+  })
 }
+
+export async function getRefreshTokenFromCookie(): Promise<string | null> {
+  const cookieStore = await cookies()
+  return cookieStore.get(REFRESH_TOKEN_COOKIE)?.value ?? null
+}
+
+export { verifyRefreshToken }

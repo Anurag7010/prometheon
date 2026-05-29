@@ -6,6 +6,10 @@ import type { Document as DomainDocument } from '@/types'
 // server-only guard would throw in jsdom — stub it out for tests
 vi.mock('server-only', () => ({}))
 
+// lib/jwt uses jose which has a cross-realm Uint8Array issue in vitest VM isolation.
+import { jwtMock } from '../setup/jwt-mock'
+vi.mock('../../lib/jwt', () => jwtMock())
+
 // Mock backend client — route tests don't call Python
 vi.mock('../../lib/backend-client', () => ({
   backendClient: {
