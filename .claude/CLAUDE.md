@@ -103,9 +103,27 @@ Three interconnected systems:
   - Router updated: routes current/latest/recent/news/who-is queries to agent (agents/router.py)
   - Architecture decisions documented: 3 ADRs + full system diagram (docs/architecture.md)
   - 23 new Python tests — all passing (test_lcel_pipeline, test_web_search_tool, test_mcp_server)
-- Next: Day 14 — Evals + Production Thinking + Phase 4 Closure
+- Day 14 (Phase 4): Evals + Production Thinking + Phase 4 Closure — COMPLETE
+  - Fine-tuning decision documented (docs/fine_tuning_decision.md): not appropriate at this stage
+  - Eval dataset: 20 questions (5 factual, 5 inferential, 5 edge case, 5 adversarial) in evals/eval_dataset.json
+  - LLM-as-judge pipeline (evals/llm_judge.py): GPT-4o scores faithfulness, relevance, completeness
+  - eval_runner.py extended: run_llm_judge_eval() with regression detection, results saved to evals/results/
+  - Rate limiter (core/rate_limiter.py): sliding window per user — 20 req/min ask, 5 req/min ingest
+  - Cost controller (core/cost_controller.py): daily token budget 100K tokens/user with usage tracking
+  - Request queue (core/request_queue.py): asyncio.Semaphore, 10 concurrent LLM calls, 30s timeout
+  - Production config (core/production_config.py): DevelopmentConfig vs ProductionConfig classes
+  - api/routes.py: rate limit + budget + queue wired into /ask and /ingest
+  - GET /health updated: includes queue stats, rate limiter stats, system memory via psutil
+  - server.py: uses production_config for reload and log_level
+  - backend-client.ts: isHealthy() method + graceful 503/502 handling in ask()
+  - ChatInterface.tsx: distinct UI for backend temporarily unavailable (amber, retry button)
+  - docs/architecture.md: ADR-004 (production hardening) + scaling to 1000 users section
+  - 26 Python tests passing (test_rate_limiter, test_cost_controller, test_request_queue, test_llm_judge)
+  - npx tsc --noEmit — zero errors
+  - Phase 4 — COMPLETE
+- Next: Phase 5 — Final Product (Days 33-40)
 
-## System Capabilities (After Day 13)
+## System Capabilities (End of Phase 4)
 
 - Upload PDFs → ingested into vector store
 - Ask questions → auto-routed: simple → RAG pipeline, complex → ReAct agent
@@ -129,9 +147,22 @@ Three interconnected systems:
 - MCP server exposing search_documents, calculate, get_document_list (stdio transport, connect with Claude Desktop)
 - Web search via Tavily — agent can access real-time information (agents/tools/web_search.py)
 - Query router updated: current/latest/recent/news/who-is queries → agent with web search
-- Architecture decision records in docs/architecture.md (LangChain vs Manual, MCP scope, Web search)
+- Architecture decision records in docs/architecture.md (4 ADRs + scaling to 1000 users)
+- LLM-as-judge eval pipeline with 20-question dataset, CI-ready (exit code 1 on failure)
+- Rate limiting: 20 req/min per user (ask), 5 req/min (ingest) — sliding window in-memory
+- Cost controls: 100K daily token budget per user — in-memory
+- Request queuing: max 10 concurrent LLM calls via asyncio.Semaphore, 30s timeout
+- Graceful degradation: 503/502 handled cleanly in Next.js with distinct UI + retry button
+- Production config: DevelopmentConfig vs ProductionConfig (FRONTEND_URL required in prod)
 
-## Framework Decisions (After Day 13)
+## Known Limitations (documented for Phase 5)
+
+- Rate limiter and cost controller are in-memory only
+- ChromaDB is local file-based — not suitable for multi-instance deployment
+- Auth tokens not forwarded to MCP server
+- No deployment pipeline yet (Phase 5)
+
+## Framework Decisions (After Day 14)
 
 - LangChain USED for: LCEL standard RAG chains, observability callbacks
 - LangChain NOT used for: agent loop, memory, guardrails, output validation (manual code is clearer)
@@ -210,13 +241,6 @@ ai-backend-project/
 - New hooks get hook tests using renderHook
 - New utilities get unit tests
 - Run tests before marking any block complete
-
-### Git
-
-- Commit after every completed block
-- Commit message format: "day{N}-block{N}: {what was built}"
-- Never commit with TypeScript errors
-- Never commit with failing tests
 
 ## Environment Variables Required
 

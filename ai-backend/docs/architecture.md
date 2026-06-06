@@ -125,3 +125,39 @@ Use Tavily for web search:
     MCP Server (stdio, separate process):
       └── Exposes: search_documents, calculate, get_document_list
       └── Connects to: Claude Desktop, Cursor, any MCP client
+
+## ADR-004: Production Hardening Decisions
+
+**Date:** 2026-06-06
+**Status:** Decided
+
+### Rate Limiting
+**Decision:** In-memory sliding window per user (20 req/min for ask, 5 req/min for ingest)
+**Limitation:** In-memory only — does not work across multiple instances
+**Migration path:** Replace with Redis-backed rate limiter when scaling horizontally
+
+### Cost Controls
+**Decision:** In-memory daily token budget (100K tokens/user/day)
+**Limitation:** Resets on server restart; per-instance not per-cluster
+**Migration path:** Persist to PostgreSQL or Redis
+
+### Concurrency
+**Decision:** asyncio.Semaphore (10 concurrent LLM calls)
+**Rationale:** Prevents OpenAI rate limit errors under concurrent load
+**Migration path:** Adjust MAX_CONCURRENT based on OpenAI tier limits
+
+### Evaluation
+**Decision:** LLM-as-judge pipeline using GPT-4o scoring faithfulness, relevance, completeness
+**Rationale:** More reliable than keyword matching for complex answers; CI-ready via exit code
+**Dataset:** 20 questions (5 factual, 5 inferential, 5 edge case, 5 adversarial)
+**Passing threshold:** 0.7 composite score
+
+## Scaling to 1000 Users — What Changes
+
+1. Rate limiter → Redis (shared across instances)
+2. Cost controller → PostgreSQL table (persisted, shared)
+3. In-memory cache → Redis (shared, not per-instance)
+4. ChromaDB local → Pinecone or Weaviate (hosted, scalable)
+5. Single uvicorn → Multiple workers behind nginx or load balancer
+6. Single PostgreSQL → Connection pooling (PgBouncer) + read replicas
+7. Estimated cost at 1000 users × 10 queries/day: $100-500/day on GPT-4o

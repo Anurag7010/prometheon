@@ -38,6 +38,11 @@ from api.models import (
 logger = get_logger(__name__)
 router = APIRouter()
 
+# Production middleware — imported lazily to avoid circular imports at module load
+from core.rate_limiter import ask_rate_limiter, ingest_rate_limiter
+from core.cost_controller import cost_controller
+from core.request_queue import request_queue
+
 
 # ── RAG adapter ───────────────────────────────────────────────────────────────
 
@@ -172,6 +177,10 @@ async def health(request: Request) -> JSONResponse:
 
     overall = "ok" if all(v == "ok" for v in components.values()) else "degraded"
 
+    import psutil
+    process = psutil.Process()
+    memory_mb = process.memory_info().rss / 1024 / 1024
+
     from core.cache import retrieval_cache, llm_cache
     return JSONResponse(content={
         "status": overall,
@@ -180,10 +189,73 @@ async def health(request: Request) -> JSONResponse:
             "retrieval": retrieval_cache.stats,
             "llm": llm_cache.stats,
         },
+        "queue": request_queue.stats,
+        "rate_limiter": ask_rate_limiter.get_stats(),
+        "system": {
+            "memory_mb": round(memory_mb, 1),
+            "memory_warning": memory_mb > 1024,
+        },
     })
 
 
 # ── POST /ask ─────────────────────────────────────────────────────────────────
+
+async def _run_ask_pipeline(body: AskRequest, user_id: str, trace_id: str) -> AskResponse | JSONResponse:
+    """The actual RAG/agent pipeline — called via request_queue.run()."""
+    from agents.router import route_query, QueryRoute
+    route = route_query(body.query, trace_id)
+
+    if route == QueryRoute.AGENT:
+        from agents.factory import create_agent
+        rag = _RAGAdapter()
+        doc_repo = _ChromaDocumentRepository()
+        agent = create_agent(rag_interface=rag, documents_repository=doc_repo)
+        result = await agent.run(
+            query=body.query,
+            user_id=user_id,
+            trace_id=trace_id,
+            conversation_history=body.history or [],
+        )
+        return AskResponse(
+            answer=result.answer,
+            sources=[],
+            trace_id=trace_id,
+            latency_breakdown={"retrieval_ms": 0, "generation_ms": 0, "total_ms": 0},
+            guardrail_rejected=False,
+            no_results=False,
+            retrieval_quality={},
+            routed_to="agent",
+        )
+
+    from rag.rag_interface import ask as rag_ask
+    result = await rag_ask(query=body.query, history=body.history, trace_id=trace_id)
+
+    if result.get("error"):
+        logger.error("ask_pipeline_error", extra={"trace_id": trace_id, "error": result["error"]})
+        return _error_response("pipeline_error", result["error"], trace_id, 500)
+
+    sources = [
+        SourceResponse(
+            content=c.get("content", ""),
+            score=c.get("score"),
+            metadata=c.get("metadata", {}),
+            citation_id=c.get("citation_id"),
+        )
+        for c in result.get("sources", [])
+        if "error" not in c
+    ]
+
+    return AskResponse(
+        answer=result["answer"],
+        sources=sources,
+        trace_id=result["trace_id"],
+        latency_breakdown=result["latency_breakdown"],
+        guardrail_rejected=result.get("guardrail_rejected", False),
+        no_results=result.get("no_results", False),
+        retrieval_quality=result.get("retrieval_quality", {}),
+        routed_to="rag",
+    )
+
 
 @router.post("/ask", response_model=AskResponse, tags=["rag"])
 async def ask(body: AskRequest, request: Request) -> AskResponse | JSONResponse:
@@ -191,75 +263,69 @@ async def ask(body: AskRequest, request: Request) -> AskResponse | JSONResponse:
     Full RAG pipeline: retrieve relevant chunks → generate grounded answer.
 
     This is the core endpoint — the chat UI calls this for every user message.
-    trace_id from X-Request-ID header flows through retrieval, generation, and logs.
+    Applies rate limiting, daily token budget check, and concurrency queuing
+    before running the pipeline.
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
+    user_id: str = request.headers.get("X-User-ID", "anonymous")
+
+    # 1. Rate limit check
+    rate_result = ask_rate_limiter.check(user_id, trace_id)
+    if not rate_result.allowed:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "RATE_LIMITED",
+                "message": f"Too many requests. Try again in {rate_result.retry_after} seconds.",
+                "retry_after": rate_result.retry_after,
+            },
+            headers={"Retry-After": str(rate_result.retry_after)},
+        )
+
+    # 2. Budget check
+    budget = cost_controller.check_budget(user_id, trace_id)
+    if not budget["allowed"]:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "BUDGET_EXCEEDED",
+                "message": (
+                    f"Daily token budget exceeded. Resets at midnight UTC. "
+                    f"Used: {budget['used_today']}/{budget['budget']} tokens."
+                ),
+                "reset_at": budget["reset_at"],
+            },
+        )
+
+    # 3. Run through request queue (concurrency control)
     try:
-        # Route to agent if query pattern matches
-        from agents.router import route_query, QueryRoute
-        route = route_query(body.query, trace_id)
-
-        if route == QueryRoute.AGENT:
-            user_id = request.headers.get("X-User-ID", "anonymous")
-            from agents.factory import create_agent
-            rag = _RAGAdapter()
-            doc_repo = _ChromaDocumentRepository()
-            agent = create_agent(rag_interface=rag, documents_repository=doc_repo)
-            result = await agent.run(
-                query=body.query,
-                user_id=user_id,
-                trace_id=trace_id,
-                conversation_history=body.history or [],
-            )
-            return AskResponse(
-                answer=result.answer,
-                sources=[],
-                trace_id=trace_id,
-                latency_breakdown={"retrieval_ms": 0, "generation_ms": 0, "total_ms": 0},
-                guardrail_rejected=False,
-                no_results=False,
-                retrieval_quality={},
-                routed_to="agent",
-            )
-
-        from rag.rag_interface import ask as rag_ask
-
-        result = await rag_ask(
-            query=body.query,
-            history=body.history,
+        result = await request_queue.run(
+            _run_ask_pipeline,
+            body,
+            user_id,
+            trace_id,
             trace_id=trace_id,
         )
-
-        if result.get("error"):
-            logger.error("ask_pipeline_error", extra={"trace_id": trace_id, "error": result["error"]})
-            return _error_response("pipeline_error", result["error"], trace_id, 500)
-
-        # Build SourceResponse list from used_chunks (which now include citation_id)
-        sources = [
-            SourceResponse(
-                content=c.get("content", ""),
-                score=c.get("score"),
-                metadata=c.get("metadata", {}),
-                citation_id=c.get("citation_id"),
-            )
-            for c in result.get("sources", [])
-            if "error" not in c
-        ]
-
-        return AskResponse(
-            answer=result["answer"],
-            sources=sources,
-            trace_id=result["trace_id"],
-            latency_breakdown=result["latency_breakdown"],
-            guardrail_rejected=result.get("guardrail_rejected", False),
-            no_results=result.get("no_results", False),
-            retrieval_quality=result.get("retrieval_quality", {}),
-            routed_to="rag",
+    except TimeoutError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "SERVICE_BUSY", "message": str(exc)},
         )
-
     except Exception as exc:
         logger.error("ask_unhandled_error", extra={"trace_id": trace_id, "error": str(exc)}, exc_info=True)
         return _error_response("ask_failed", str(exc), trace_id, 500)
+
+    # 4. Record token usage from result metadata (best-effort)
+    token_usage = getattr(result, "token_usage", None) or {}
+    if token_usage:
+        cost_controller.record_usage(
+            user_id=user_id,
+            input_tokens=token_usage.get("input", 0),
+            output_tokens=token_usage.get("output", 0),
+            trace_id=trace_id,
+        )
+
+    return result
 
 
 # ── POST /ask/stream ──────────────────────────────────────────────────────────
@@ -356,7 +422,21 @@ async def ingest(
     python-multipart is required for UploadFile to work.
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
+    user_id: str = request.headers.get("X-User-ID", "anonymous")
     tmp_path: str | None = None
+
+    # Rate limit ingest (stricter — 5/min per user)
+    rate_result = ingest_rate_limiter.check(user_id, trace_id)
+    if not rate_result.allowed:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "RATE_LIMITED",
+                "message": f"Too many ingest requests. Try again in {rate_result.retry_after} seconds.",
+                "retry_after": rate_result.retry_after,
+            },
+            headers={"Retry-After": str(rate_result.retry_after)},
+        )
 
     try:
         import json as _json

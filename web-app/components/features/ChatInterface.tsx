@@ -107,9 +107,25 @@ export function ChatInterface(): React.ReactElement {
                 </div>
               </div>
             )}
-            renderError={(error) => (
-              <p className="text-center text-xs text-red-500 mt-2">{error}</p>
-            )}
+            renderError={(error) => {
+              const isUnavailable = typeof error === 'string' && error.includes('temporarily unavailable')
+              if (isUnavailable) {
+                return (
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    <p className="text-center text-xs text-amber-600">
+                      AI service is temporarily unavailable — your documents are safe
+                    </p>
+                    <button
+                      onClick={() => askStream(input || (messages[messages.length - 2]?.content ?? ''))}
+                      className="text-xs text-primary underline hover:no-underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )
+              }
+              return <p className="text-center text-xs text-red-500 mt-2">{error}</p>
+            }}
             renderSuccess={() => null}
             renderIdle={() => null}
           />

@@ -14,14 +14,16 @@ main.py remains the CLI entry point for health checks, smoke tests, and eval run
 import os
 import uvicorn
 from api.app import app  # noqa: F401 — imported so uvicorn can find it
+from core.production_config import get_config
 
 if __name__ == "__main__":
+    cfg = get_config()
     port = int(os.getenv("API_PORT", "8000"))
-    reload = os.getenv("API_RELOAD", "true").lower() == "true"
 
     uvicorn.run(
         "api.app:app",
         host="0.0.0.0",
         port=port,
-        reload=reload,
+        reload=cfg.UVICORN_RELOAD,
+        log_level=cfg.LOG_LEVEL.lower(),
     )

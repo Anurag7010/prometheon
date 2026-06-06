@@ -204,6 +204,18 @@ class BackendClient {
     this.apiKey = key
   }
 
+  async isHealthy(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/health`, {
+        headers: { 'X-API-Key': this.apiKey },
+        signal: AbortSignal.timeout(3000),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+
   async ask(
     query: string,
     options: {
@@ -214,18 +226,30 @@ class BackendClient {
       userId?: string
     } = {}
   ): Promise<AskResponse> {
-    const raw = await this.request<PythonAskResponse>('/ask', {
-      method: 'POST',
-      body: JSON.stringify({
-        query,
-        top_k: options.topK ?? 5,
-        strategy: options.strategy ?? 'semantic',
-        history: options.history ?? [],
-      }),
-      traceId: options.traceId,
-      userId: options.userId,
-    })
-    return toAskResponse(raw)
+    try {
+      const raw = await this.request<PythonAskResponse>('/ask', {
+        method: 'POST',
+        body: JSON.stringify({
+          query,
+          top_k: options.topK ?? 5,
+          strategy: options.strategy ?? 'semantic',
+          history: options.history ?? [],
+        }),
+        traceId: options.traceId,
+        userId: options.userId,
+      })
+      return toAskResponse(raw)
+    } catch (error) {
+      if (error instanceof BackendError && (error.status === 503 || error.status === 502)) {
+        throw new BackendError(
+          'The AI service is temporarily unavailable. Please try again in a moment.',
+          503,
+          'BACKEND_UNAVAILABLE',
+          options.traceId
+        )
+      }
+      throw error
+    }
   }
 
   async askStream(
