@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform, useInView } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 
 const EASING: [number, number, number, number] = [0.86, 0, 0.31, 1];
 const TITLE_SHADOW =
@@ -14,33 +14,24 @@ interface SplitTextProps {
   shadow?: string;
 }
 
-function SplitText({
-  text,
-  color,
-  shadow = TITLE_SHADOW,
-}: SplitTextProps) {
+function SplitText({ text, color, shadow = TITLE_SHADOW }: SplitTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { once: true, margin: "0px" });
 
   return (
-    <span ref={ref} className="flex flex-wrap overflow-hidden">
-      {text.split("").map((char, i) => (
-        <motion.span
-          key={i}
-          initial={{ y: "120%" }}
-          animate={inView ? { y: "0%" } : { y: "120%" }}
-          transition={{
-            duration: 0.9,
-            ease: EASING,
-            delay: i * 0.04,
-          }}
-          whileHover={{ y: -4, scale: 1.08 }}
-          className="inline-flex cursor-default font-cormorant"
-          style={{ color, textShadow: shadow, willChange: "transform" }}
-        >
-          {char}
-        </motion.span>
-      ))}
+    <span ref={ref} style={{ overflow: "hidden", display: "block" }}>
+      <motion.span
+        initial={{ y: "35%", opacity: 0 }}
+        animate={inView ? { y: "0%", opacity: 1 } : { y: "35%", opacity: 0 }}
+        transition={{
+          duration: 0.75,
+          ease: EASING,
+        }}
+        className="inline-block font-cormorant"
+        style={{ color, textShadow: shadow, willChange: "transform" }}
+      >
+        {text}
+      </motion.span>
     </span>
   );
 }
@@ -54,12 +45,6 @@ const TITLE_CSS: React.CSSProperties = {
 };
 
 export default function StringPoster() {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-  const bgY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
 
   const words: Array<{
     text: string;
@@ -139,10 +124,8 @@ export default function StringPoster() {
     },
   ];
 
-
   return (
     <section
-      ref={sectionRef}
       className="relative overflow-hidden"
       style={{ minHeight: "100vh", backgroundColor: "#171B1F" }}
     >
@@ -162,32 +145,50 @@ export default function StringPoster() {
         }}
       />
 
-      {/* Parallax background */}
+      {/* Background */}
       <div className="absolute inset-0 overflow-hidden">
-        <motion.div
+        <img
+          src="/StringPosterBG.png"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        />
+        <div
           className="absolute inset-0"
-          style={{ y: bgY, height: "120%", top: "-10%" }}
-        >
-          <img
-            src="/StringPosterBG.png"
-            alt=""
-            className="w-full h-full object-cover object-center"
-          />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.42) 40%, rgba(0,0,0,0.72) 100%)",
-            }}
-          />
-        </motion.div>
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.42) 40%, rgba(0,0,0,0.72) 100%)",
+          }}
+        />
       </div>
 
       {/* Poster grid */}
       <div
         className="relative z-[1] mx-4 md:mx-8 lg:mx-16"
-        style={{ marginTop: "calc(70vh)", marginBottom: "calc(3.815rem * 2)" }}
+        style={{ marginTop: "calc(55vh)", marginBottom: "calc(3.815rem * 2)" }}
       >
+        {/* Quote — above the grid */}
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "60px" }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+          className="font-cormorant italic text-center"
+          style={{
+            color: "rgba(237,232,224,0.92)",
+            fontSize: "clamp(2rem, 2vw, 7rem)",
+            lineHeight: 1.45,
+            letterSpacing: "-0.01em",
+            textShadow: TITLE_SHADOW,
+            marginBottom: "clamp(2rem, 4vw, 4rem)",
+            paddingLeft: "clamp(1rem, 8vw, 10rem)",
+            paddingRight: "clamp(1rem, 8vw, 10rem)",
+          }}
+        >
+          &ldquo;Prometheus carried fire across the sky so humanity could see in
+          the dark. We built PrometheonAI so your organization never has to
+          search in it.&rdquo;
+        </motion.p>
+
         <div
           style={{
             display: "grid",
@@ -230,9 +231,9 @@ export default function StringPoster() {
           >
             <span>Knowledge</span>
             <span style={{ color: "#D4572A", opacity: 0.9 }}>·</span>
-            <span>Illuminates</span>
+            <span>Reasoning</span>
             <span style={{ color: "#D4572A", opacity: 0.9 }}>·</span>
-            <span>Organizations</span>
+            <span>Accuracy</span>
           </div>
 
           {/* 7 horizontal dividers */}
@@ -312,29 +313,6 @@ export default function StringPoster() {
               textShadow: LABEL_SHADOW,
             }}
           ></span>
-
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "120px" }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="font-almarai font-light leading-relaxed text-center"
-            style={{
-              gridColumn: "3 / 9",
-              gridRow: "16 / 17",
-              marginTop: "3vw",
-              marginBottom: "3vw",
-              color: "rgba(237,232,224,0.72)",
-              fontSize: "clamp(0.85rem, 1.15vw, 1.05rem)",
-              textShadow: LABEL_SHADOW,
-              letterSpacing: "0.01em",
-            }}
-          >
-            Prometheus carried fire across the sky so humanity could see in the
-            dark. We built PrometheonAI so your organization never has to search
-            in it.
-          </motion.p>
 
           {/* Bottom centre label */}
           <span

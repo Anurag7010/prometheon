@@ -37,12 +37,12 @@ export function WordsPullUpMultiStyle({ segments, containerClassName, delay = 0 
         <span key={i} style={{ overflow: 'hidden', display: 'inline-block' }}>
           <motion.span
             className={item.className}
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: 12, opacity: 0 }}
             animate={inView ? { y: 0, opacity: 1 } : undefined}
             transition={{
-              duration: 0.6,
+              duration: 0.75,
               ease: EASE_CINEMATIC,
-              delay: delay + i * STAGGER.base,
+              delay: delay + i * STAGGER.tight,
             }}
             style={{ display: 'inline-block' }}
           >

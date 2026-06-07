@@ -21,12 +21,12 @@ export function WordsPullUp({ text, className, showAsterisk, delay = 0 }: WordsP
       {words.map((word, i) => (
         <span key={i} style={{ overflow: 'hidden', display: 'inline-block' }}>
           <motion.span
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: 12, opacity: 0 }}
             animate={inView ? { y: 0, opacity: 1 } : undefined}
             transition={{
-              duration: 0.6,
+              duration: 0.7,
               ease: EASE_CINEMATIC,
-              delay: delay + i * STAGGER.base,
+              delay: delay + i * STAGGER.tight,
             }}
             style={{ display: 'inline-block', whiteSpace: 'pre' }}
           >

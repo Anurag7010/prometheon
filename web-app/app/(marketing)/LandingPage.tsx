@@ -13,6 +13,7 @@ import {
 import { ArrowRight, ArrowUpRight, Check } from "lucide-react";
 import { getAccessToken } from "@/hooks/useAuth";
 import StringPoster from "@/components/marketing/StringPoster";
+import { PageReveal } from "@/components/marketing/PageReveal";
 import {
   WordsPullUp,
   WordsPullUpMultiStyle,
@@ -24,7 +25,7 @@ import { EASE_CINEMATIC, EASE_ENTRANCE, DURATION } from "@/lib/motion";
 
 const VIDEO_URL = "/prometheon-hero-hd.mp4";
 const FEAT_URL = "/philosopher-card.png";
-const ZEUS_URL = "/zeus-demo.mp4";
+const ZEUS_URL = "/zeus-card.jpeg";
 const NAV_SCROLL_ITEMS = ["Manifesto", "How It Works", "Intelligence"];
 
 /* ─── FLAME SVG ─── */
@@ -161,9 +162,9 @@ function HeroSection() {
             <div className="col-span-12 lg:col-span-8">
               <h1 className="relative overflow-visible">
                 <motion.span
-                  initial={{ opacity: 0, y: 40 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
                   className="block font-cormorant font-semibold leading-[0.9] tracking-[-0.03em] text-[15vw] sm:text-[13vw] md:text-[12vw] lg:text-[10.5vw]"
                   style={{ color: "#EDE8E0" }}
                 >
@@ -181,11 +182,11 @@ function HeroSection() {
             {/* Right 4 cols — copy + CTA */}
             <div className="col-span-12 lg:col-span-4 pb-2">
               <motion.p
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
                   duration: DURATION.slow,
-                  delay: 0.5,
+                  delay: 0.6,
                   ease: EASE_CINEMATIC,
                 }}
                 className="text-parchment/90 text-md sm:text-lg md:text-xl leading-relaxed mb-6 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]"
@@ -197,11 +198,11 @@ function HeroSection() {
               </motion.p>
 
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
                   duration: DURATION.slow,
-                  delay: 0.7,
+                  delay: 0.85,
                   ease: EASE_CINEMATIC,
                 }}
               >
@@ -403,12 +404,12 @@ function FeatureCard({
   return (
     <motion.div
       ref={ref}
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={inView ? { scale: 1, opacity: 1 } : undefined}
+      initial={{ opacity: 0, y: 14 }}
+      animate={inView ? { opacity: 1, y: 0 } : undefined}
       transition={{
         duration: DURATION.slow,
         ease: EASE_ENTRANCE,
-        delay: index * 0.15,
+        delay: index * 0.1,
       }}
     >
       <SpotlightCard className="rounded-2xl overflow-hidden h-full">
@@ -518,19 +519,19 @@ function PhilosophySection() {
       </div>
       <div className="max-w-6xl mx-auto">
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: DURATION.base, ease: EASE_CINEMATIC }}
+          transition={{ duration: DURATION.slow, ease: EASE_CINEMATIC }}
           className="text-stone-mid text-sm tracking-widest uppercase mb-6"
         >
           Our Approach
         </motion.p>
         <motion.h2
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
           transition={{
             duration: DURATION.slow,
-            delay: 0.1,
+            delay: 0.12,
             ease: EASE_CINEMATIC,
           }}
           className="text-4xl md:text-6xl lg:text-7xl text-parchment leading-[1.1] tracking-tight"
@@ -571,28 +572,21 @@ function InnovationSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Left — video */}
           <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            animate={inView ? { opacity: 1, x: 0 } : undefined}
+            initial={{ opacity: 0, y: 16 }}
+            animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ duration: DURATION.slow, ease: EASE_CINEMATIC }}
             className="rounded-3xl overflow-hidden aspect-[4/3]"
           >
-            <video
-              src={ZEUS_URL}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
+            <img src={ZEUS_URL} alt="Zeus demo" />
           </motion.div>
 
           {/* Right — text blocks */}
           <motion.div
-            initial={{ opacity: 0, x: 40 }}
-            animate={inView ? { opacity: 1, x: 0 } : undefined}
+            initial={{ opacity: 0, y: 16 }}
+            animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{
               duration: DURATION.slow,
-              delay: 0.15,
+              delay: 0.18,
               ease: EASE_CINEMATIC,
             }}
             className="flex flex-col justify-center gap-8"
@@ -674,11 +668,11 @@ function ServicesSection() {
           {services.map((svc, i) => (
             <motion.div
               key={svc.tag}
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={inView ? { opacity: 1, y: 0 } : undefined}
               transition={{
                 duration: DURATION.slow,
-                delay: i * 0.15,
+                delay: i * 0.12,
                 ease: EASE_ENTRANCE,
               }}
             >
@@ -746,10 +740,10 @@ function LinkedinIcon() {
 function Footer() {
   return (
     <motion.footer
-      initial={{ opacity: 0, y: 40 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+      transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
       className="liquid-glass rounded-3xl p-6 md:p-10 text-parchment/70 mx-4 md:mx-6 mt-8 md:mt-12 mb-6"
     >
       <div className="grid grid-cols-1 md:grid-cols-12 gap-10 mb-10">
@@ -821,26 +815,26 @@ function CtaSection() {
       </div>
       <div className="max-w-3xl mx-auto text-center">
         <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : undefined}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="text-ash-gray text-xs tracking-[0.2em] uppercase mb-4"
         >
           Ready when you are
         </motion.p>
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.9, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
           className="font-cormorant text-4xl md:text-5xl font-light text-parchment mb-10 tracking-[-0.02em]"
         >
           Enter the forge or consult the oracle.
         </motion.h2>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.8, delay: 0.22, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <Link
@@ -871,6 +865,7 @@ function CtaSection() {
 export default function LandingPage() {
   return (
     <main className="bg-ember-black min-h-screen">
+      <PageReveal />
       <Navbar />
       <HeroSection />
       <StringPoster />
