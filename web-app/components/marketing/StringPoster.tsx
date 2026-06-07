@@ -4,20 +4,19 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 
 const EASING: [number, number, number, number] = [0.86, 0, 0.31, 1];
-const TITLE_SHADOW = "0 2px 28px rgba(0,0,0,0.92), 0 1px 4px rgba(0,0,0,0.98)";
+const TITLE_SHADOW =
+  "0 4px 40px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,1), 0 0 60px rgba(0,0,0,0.7)";
 const LABEL_SHADOW = "0 1px 12px rgba(0,0,0,0.95)";
 
 interface SplitTextProps {
   text: string;
   color: string;
-  startIndex: number;
   shadow?: string;
 }
 
 function SplitText({
   text,
   color,
-  startIndex,
   shadow = TITLE_SHADOW,
 }: SplitTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -33,8 +32,9 @@ function SplitText({
           transition={{
             duration: 0.9,
             ease: EASING,
-            delay: ((startIndex + i) / 5) * 0.3,
+            delay: i * 0.04,
           }}
+          whileHover={{ y: -4, scale: 1.08 }}
           className="inline-flex cursor-default font-cormorant"
           style={{ color, textShadow: shadow, willChange: "transform" }}
         >
@@ -49,7 +49,7 @@ const TITLE_CSS: React.CSSProperties = {
   textTransform: "uppercase",
   lineHeight: 0.85,
   fontSize: "clamp(4.5rem, 10vw, 9rem)",
-  fontWeight: 300,
+  fontWeight: 400,
   letterSpacing: "-0.02em",
 };
 
@@ -86,7 +86,7 @@ export default function StringPoster() {
       row: "6 / 7",
       align: "start",
       ml: "1rem",
-      shadow: "0 2px 20px rgba(0,0,0,0.7)",
+      shadow: "0 4px 32px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,1)",
     },
     {
       text: "Never",
@@ -107,7 +107,7 @@ export default function StringPoster() {
     {
       text: "The",
       color: "#EDE8E0",
-      col: "1 / 10",
+      col: "1 / 11",
       row: "10 / 11",
       align: "end",
       mr: "1rem",
@@ -123,23 +123,22 @@ export default function StringPoster() {
     {
       text: "Always",
       color: "#D4572A",
-      col: "1 / 10",
+      col: "1 / 11",
       row: "12 / 13",
       align: "end",
       mr: "1rem",
     },
     {
       text: "Remembers",
-      color: "EDE8E0",
+      color: "#EDE8E0",
       col: "1 / 11",
       row: "14 / 15",
       align: "end",
       mr: "1rem",
-      shadow: "0 2px 20px rgba(0,0,0,0.7)",
+      shadow: "0 4px 32px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,1)",
     },
   ];
 
-  let charCursor = 0;
 
   return (
     <section
@@ -178,7 +177,7 @@ export default function StringPoster() {
             className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(to bottom, rgba(23,27,31,0.52) 0%, rgba(23,27,31,0.22) 40%, rgba(23,27,31,0.52) 100%)",
+                "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.42) 40%, rgba(0,0,0,0.72) 100%)",
             }}
           />
         </motion.div>
@@ -236,23 +235,6 @@ export default function StringPoster() {
             <span>Organizations</span>
           </div>
 
-          {/* Side caption */}
-          <p
-            className="font-almarai leading-snug"
-            style={{
-              gridColumn: "8 / 11",
-              gridRow: "2 / 3",
-              marginTop: "8vw",
-              marginBottom: "2vw",
-              color: "rgba(237,232,224,0.72)",
-              fontSize: "clamp(1.5rem, 1.5vw, 1.5rem)",
-              textShadow: LABEL_SHADOW,
-              letterSpacing: "0.01em",
-            }}
-          >
-            A flame passed forward illuminates civilization, just as knowledge.
-          </p>
-
           {/* 7 horizontal dividers */}
           {[
             "3 / 4",
@@ -279,8 +261,6 @@ export default function StringPoster() {
 
           {/* Giant title words */}
           {words.map((word, i) => {
-            const start = charCursor;
-            charCursor += word.text.length;
             return (
               <div
                 key={i}
@@ -298,7 +278,6 @@ export default function StringPoster() {
                 <SplitText
                   text={word.text}
                   color={word.color}
-                  startIndex={start}
                   shadow={word.shadow}
                 />
               </div>
@@ -335,7 +314,11 @@ export default function StringPoster() {
           ></span>
 
           {/* Description */}
-          <p
+          <motion.p
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "120px" }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="font-almarai font-light leading-relaxed text-center"
             style={{
               gridColumn: "3 / 9",
@@ -351,7 +334,7 @@ export default function StringPoster() {
             Prometheus carried fire across the sky so humanity could see in the
             dark. We built PrometheonAI so your organization never has to search
             in it.
-          </p>
+          </motion.p>
 
           {/* Bottom centre label */}
           <span

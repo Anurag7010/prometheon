@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/motion";
 import { EASE_CINEMATIC, EASE_ENTRANCE, DURATION } from "@/lib/motion";
 
-const VIDEO_URL = "/prometheon-bg.mp4";
-const NOISE_URL = "/noise.png";
+const VIDEO_URL = "/prometheon-hero-hd.mp4";
+const FEAT_URL = "/philosopher-card.png";
+const ZEUS_URL = "/zeus-demo.mp4";
 const NAV_SCROLL_ITEMS = ["Manifesto", "How It Works", "Intelligence"];
 
 /* ─── FLAME SVG ─── */
@@ -413,12 +414,9 @@ function FeatureCard({
       <SpotlightCard className="rounded-2xl overflow-hidden h-full">
         {card.isVideo ? (
           <div className="relative h-full min-h-[320px] lg:min-h-[480px]">
-            <video
-              src={NOISE_URL}
-              autoPlay
-              loop
-              muted
-              playsInline
+            <img
+              src={FEAT_URL}
+              alt={card.title}
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -550,7 +548,7 @@ function PhilosophySection() {
   );
 }
 
-/* ─── SECTION E: INNOVATION × VISION ─── */
+/* ─── SECTION E: SPEED × ACCURACY ─── */
 function InnovationSection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true });
@@ -579,7 +577,7 @@ function InnovationSection() {
             className="rounded-3xl overflow-hidden aspect-[4/3]"
           >
             <video
-              src={VIDEO_URL}
+              src={ZEUS_URL}
               autoPlay
               loop
               muted
