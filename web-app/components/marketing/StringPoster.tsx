@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 
 const EASING: [number, number, number, number] = [0.86, 0, 0.31, 1];
@@ -147,10 +148,11 @@ export default function StringPoster() {
 
       {/* Background */}
       <div className="absolute inset-0 overflow-hidden">
-        <img
+        <Image
           src="/StringPosterBG.png"
           alt=""
-          className="absolute inset-0 w-full h-full object-cover object-center"
+          fill
+          className="object-cover object-center"
         />
         <div
           className="absolute inset-0"

@@ -2,20 +2,19 @@
 
 import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   motion,
   useScroll,
   useTransform,
   useInView,
-  AnimatePresence,
 } from "framer-motion";
 import { ArrowRight, ArrowUpRight, Check } from "lucide-react";
 import { getAccessToken } from "@/hooks/useAuth";
 import StringPoster from "@/components/marketing/StringPoster";
 import { PageReveal } from "@/components/marketing/PageReveal";
 import {
-  WordsPullUp,
   WordsPullUpMultiStyle,
   AnimatedLetter,
   MagneticButton,
@@ -415,10 +414,11 @@ function FeatureCard({
       <SpotlightCard className="rounded-2xl overflow-hidden h-full">
         {card.isVideo ? (
           <div className="relative h-full min-h-[320px] lg:min-h-[480px]">
-            <img
+            <Image
               src={FEAT_URL}
               alt={card.title}
-              className="absolute inset-0 w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
             <div className="absolute bottom-6 left-6 right-6">
@@ -577,7 +577,7 @@ function InnovationSection() {
             transition={{ duration: DURATION.slow, ease: EASE_CINEMATIC }}
             className="rounded-3xl overflow-hidden aspect-[4/3]"
           >
-            <img src={ZEUS_URL} alt="Zeus demo" />
+            <Image src={ZEUS_URL} alt="Zeus demo" fill className="object-cover" />
           </motion.div>
 
           {/* Right — text blocks */}
@@ -603,9 +603,9 @@ function InnovationSection() {
                 relevant, regardless of exact wording.
               </p>
               <p className="text-ash-gray text-sm leading-relaxed">
-                The result - you can ask "what were the main risks identified"
+                The result - you can ask &quot;what were the main risks identified&quot;
                 and surface every risk-related passage across every document you
-                have ever uploaded, even if none of them uses the word "risk."
+                have ever uploaded, even if none of them uses the word &quot;risk.&quot;
               </p>
             </div>
             <div className="w-full h-px bg-[#A99985]/20" />
@@ -619,7 +619,7 @@ function InnovationSection() {
                 role, your project context, your preferences, recurring topics.
                 These facts are stored as embeddings in a private memory store
                 and injected into future conversations automatically. You never
-                have to say "as I mentioned before." It already knows.
+                have to say &ldquo;as I mentioned before.&rdquo; It already knows.
               </p>
             </div>
           </motion.div>

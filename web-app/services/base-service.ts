@@ -4,7 +4,7 @@ import {
   CancellationError,
   RetryExhaustedError,
 } from '../lib/async'
-import type { ApiError } from '../types'
+
 import { logError } from '../lib/error-logger'
 
 // ============================================================
@@ -66,7 +66,7 @@ export class BaseService {
   private defaultHeaders: Record<string, string>
 
   // Keyed by method:endpoint:body — stores in-flight Promises
-  private inFlightRequests: Map<string, Promise<ServiceResponse<any>>>
+  private inFlightRequests: Map<string, Promise<ServiceResponse<unknown>>>
 
   constructor(baseUrl: string, defaultHeaders: Record<string, string> = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '') // strip trailing slash
@@ -148,8 +148,11 @@ export class BaseService {
   // Structured logging — never logs body or auth headers
   // ============================================================
   private log(entry: RequestLog): void {
-    const level = entry.errorCode ? 'error' : 'info'
-    console[level]('[BaseService]', JSON.stringify(entry))
+    if (entry.errorCode) {
+      console.error('[BaseService]', JSON.stringify(entry))
+    } else {
+      console.warn('[BaseService]', JSON.stringify(entry))
+    }
   }
 
   // ============================================================
@@ -177,7 +180,7 @@ export class BaseService {
 
       if (this.inFlightRequests.has(key)) {
         // Return the existing Promise — no new network call
-        return this.inFlightRequests.get(key)!
+        return this.inFlightRequests.get(key)! as Promise<ServiceResponse<T>>
       }
 
       // Build the promise, store it, then return it
@@ -188,7 +191,7 @@ export class BaseService {
         this.inFlightRequests.delete(key)
       })
 
-      this.inFlightRequests.set(key, promise)
+      this.inFlightRequests.set(key, promise as Promise<ServiceResponse<unknown>>)
       return promise
     }
 
@@ -251,9 +254,7 @@ export class BaseService {
           // fetch does NOT throw on HTTP errors — check manually
           if (!response.ok) {
             // Throw a shaped object so normalizeError can extract the status
-            const httpError = new Error(`HTTP ${response.status}`) as any
-            httpError.status = response.status
-            throw httpError
+            throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
           }
 
           // Parse JSON — throws SyntaxError if body is malformed
@@ -274,7 +275,7 @@ export class BaseService {
             // Retry network errors
             if (err instanceof TypeError) return true
             // Retry 429 and 5xx
-            const status = (err as any)?.status
+            const status = (err as { status?: number })?.status
             if (typeof status === 'number') return status === 429 || status >= 500
             return false
           }
@@ -294,7 +295,7 @@ export class BaseService {
 
     } catch (err) {
       const latencyMs = Date.now() - startTime
-      const serviceError = this.normalizeError(err, (err as any)?.status ?? responseStatus ?? undefined)
+      const serviceError = this.normalizeError(err, (err as { status?: number })?.status ?? responseStatus ?? undefined)
 
       this.log({
         method,

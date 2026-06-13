@@ -14,8 +14,11 @@ async function postHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
   const body = await req.json()
-  await backendClient.extractMemories(context.userId!, body.messages ?? [])
+  await backendClient.extractMemories(userId, body.messages ?? [])
   return NextResponse.json({ status: 'ok' })
 }
 

@@ -1,4 +1,4 @@
-import type { AskResponse, IngestResponse, DocumentListResponse, DocumentDetailResponse } from './api'
+import type { AskResponse, IngestResponse } from './api'
 import type { Document, DocumentSummary, Message } from './domain'
 
 // ============================================================

@@ -189,10 +189,12 @@ describe('BaseService — request', () => {
     await vi.runAllTimersAsync()
     await promise
 
-    const [, init] = mockFetch.mock.calls[0]
-    expect(init.method).toBe('POST')
+    const firstCall = mockFetch.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const init = firstCall?.[1]
+    expect(init?.method).toBe('POST')
     // Body is a JSON string — BaseService calls JSON.stringify on non-FormData bodies
-    expect(JSON.parse(init.body)).toEqual({ name: 'test' })
+    expect(JSON.parse(init?.body)).toEqual({ name: 'test' })
   })
 
   it('FormData body — does not JSON.stringify, removes Content-Type so browser sets boundary', async () => {
@@ -210,11 +212,13 @@ describe('BaseService — request', () => {
     await vi.runAllTimersAsync()
     await promise
 
-    const [, init] = mockFetch.mock.calls[0]
+    const firstCall = mockFetch.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const init = firstCall?.[1]
     // Body must be the raw FormData, not a stringified version
-    expect(init.body).toBeInstanceOf(FormData)
+    expect(init?.body).toBeInstanceOf(FormData)
     // Content-Type must be absent — browser sets it with the correct multipart boundary
-    expect(init.headers?.['Content-Type']).toBeUndefined()
+    expect(init?.headers?.['Content-Type']).toBeUndefined()
   })
 
   it('failed request — returns error envelope without throwing', async () => {

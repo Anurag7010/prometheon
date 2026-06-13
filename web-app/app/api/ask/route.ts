@@ -14,9 +14,10 @@ import { backendClient } from '@/lib/backend-client'
 import { BackendError, mapBackendError } from '@/lib/backend-error-mapper'
 import { getConversationMessages, addMessage } from '@/db/repositories/messages'
 import { findConversationById, updateConversationTitle } from '@/db/repositories/conversations'
+import { MAX_QUERY_LENGTH } from '@/lib/constants'
 
 const AskSchema = z.object({
-  query: z.string().min(1, 'Query is required').max(2000),
+  query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
   topK: z.number().int().min(1).max(20).optional().default(5),
   strategy: z.enum(['semantic', 'hybrid', 'multi_query', 'rrf']).optional().default('semantic'),
   history: z.array(z.object({
@@ -34,9 +35,12 @@ async function listHandler(
   const { searchParams } = req.nextUrl
   const documentId = searchParams.get('documentId')
 
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
   const results = documentId
     ? await queriesRepository.findByDocument(documentId)
-    : await queriesRepository.findByUser(context.userId!)
+    : await queriesRepository.findByUser(userId)
 
   return NextResponse.json({ data: results, requestId: context.requestId })
 }
@@ -45,6 +49,9 @@ async function createHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
   const body = context.parsedBody as z.infer<typeof AskSchema>
   const { conversationId } = body
 
@@ -63,7 +70,7 @@ async function createHandler(
 
   // Create query record before AI call — we have a record even if AI fails
   const queryRecord = await queriesRepository.create({
-    userId: context.userId!,
+    userId: userId,
     queryText: body.query,
     documentId: body.documentId ?? null,
   })
@@ -74,14 +81,14 @@ async function createHandler(
       strategy: body.strategy,
       history: effectiveHistory,
       traceId: context.requestId,
-      userId: context.userId!,
+      userId: userId,
     })
 
-    // Persist answer and latency for query history
+    // Persist answer and latency for query history (latencyMs is integer column — round float)
     await queriesRepository.updateAnswer(
       queryRecord.id,
       aiResponse.answer,
-      aiResponse.latencyBreakdown.totalMs,
+      Math.round(aiResponse.latencyBreakdown.totalMs),
       { sources: aiResponse.sources, traceId: aiResponse.traceId }
     )
 
@@ -91,9 +98,9 @@ async function createHandler(
       await addMessage({ conversationId, role: 'assistant', content: aiResponse.answer, tokenCount: 0 })
 
       // Auto-title: update if still default title
-      const conv = await findConversationById(conversationId, context.userId!)
+      const conv = await findConversationById(conversationId, userId)
       if (conv?.title === 'New Conversation') {
-        await updateConversationTitle(conversationId, context.userId!, body.query.slice(0, 50))
+        await updateConversationTitle(conversationId, userId, body.query.slice(0, 50))
       }
 
       // Non-blocking: trigger memory extraction for the conversation
@@ -105,7 +112,7 @@ async function createHandler(
           'X-API-Key': process.env.AI_BACKEND_API_KEY ?? '',
         },
         body: JSON.stringify({
-          user_id: context.userId!,
+          user_id: userId,
           messages: [
             ...historyFromDB,
             { role: 'user', content: body.query },

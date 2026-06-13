@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { Middleware } from './types'
 
 export const withRequestId: Middleware = (handler) => {

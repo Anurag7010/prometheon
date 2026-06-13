@@ -41,10 +41,12 @@ vi.mock('../../db', () => ({
 import * as db from '../../db'
 import { backendClient } from '../../lib/backend-client'
 import { POST } from '../../app/api/ask/stream/route'
-import { toDocumentId, toUserId } from '@/types'
+import { toUserId, toQueryId } from '@/types'
 import type { Query } from '@/types'
 
 const queriesRepo = db.queriesRepository as typeof db.queriesRepository
+// askStream is mocked — use a typed reference to avoid repeated casts
+const mockAskStream = backendClient.askStream as unknown as ReturnType<typeof vi.fn>
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,7 +90,7 @@ async function parseSSEText(text: string): Promise<object[]> {
 // makeRequest discards the stream body after parsing JSON.
 // For streaming tests we call the handler directly and return the raw Response.
 async function makeRawAuthRequest(
-  handler: (req: NextRequest, ctx?: any) => Promise<Response>,
+  handler: (req: NextRequest, ctx?: Record<string, unknown>) => Promise<Response>,
   body: object,
   userId = TEST_USER_ID
 ): Promise<Response> {
@@ -100,12 +102,12 @@ async function makeRawAuthRequest(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
-  } as any)
+  })
   return handler(req, { params: {} })
 }
 
 const MOCK_QUERY_RECORD: Query = {
-  id: '00000000-0000-0000-0000-000000000099' as any,
+  id: toQueryId('00000000-0000-0000-0000-000000000099'),
   userId: toUserId(TEST_USER_ID),
   documentId: null,
   queryText: 'What is this about?',
@@ -131,7 +133,7 @@ describe('POST /api/ask/stream', () => {
 
   it('returns 200 with text/event-stream content type', async () => {
     // Proves the route sets the correct content type for SSE — browsers require this
-    vi.mocked(backendClient.askStream as any).mockResolvedValue(
+    mockAskStream.mockResolvedValue(
       encodeSSE([
         { type: 'token', content: 'Hello' },
         { type: 'done', trace_id: 't1', latency_ms: 100 },
@@ -149,7 +151,7 @@ describe('POST /api/ask/stream', () => {
 
   it('includes Cache-Control: no-cache header', async () => {
     // Streaming proxies must not buffer — no-cache forces pass-through
-    vi.mocked(backendClient.askStream as any).mockResolvedValue(
+    mockAskStream.mockResolvedValue(
       encodeSSE([{ type: 'done', trace_id: 't1', latency_ms: 50 }])
     )
 
@@ -191,7 +193,7 @@ describe('POST /api/ask/stream', () => {
 
   it('creates a query record before streaming starts', async () => {
     // DB record must exist before any streaming — so we have a record even if stream fails
-    vi.mocked(backendClient.askStream as any).mockResolvedValue(
+    mockAskStream.mockResolvedValue(
       encodeSSE([{ type: 'done', trace_id: 't1', latency_ms: 100 }])
     )
 
@@ -210,7 +212,7 @@ describe('POST /api/ask/stream', () => {
 
   it('passes query and options to backendClient.askStream', async () => {
     // Verifies the route correctly forwards topK and strategy
-    vi.mocked(backendClient.askStream as any).mockResolvedValue(
+    mockAskStream.mockResolvedValue(
       encodeSSE([{ type: 'done', trace_id: 't1', latency_ms: 100 }])
     )
 
@@ -231,7 +233,7 @@ describe('POST /api/ask/stream', () => {
       { type: 'token', content: ' world' },
       { type: 'done', trace_id: 't1', latency_ms: 100 },
     ]
-    vi.mocked(backendClient.askStream as any).mockResolvedValue(encodeSSE(tokenEvents))
+    mockAskStream.mockResolvedValue(encodeSSE(tokenEvents))
 
     // Use raw handler call so we get the ReadableStream body intact
     const res = await makeRawAuthRequest(POST, { query: 'What is this about?' })
@@ -239,10 +241,11 @@ describe('POST /api/ask/stream', () => {
     const rawText = await readStreamText(res)
     const events = await parseSSEText(rawText)
 
-    const tokens = events.filter((e: any) => e.type === 'token')
+    type TokenEvent = { type: string; content?: string }
+    const tokens = (events as TokenEvent[]).filter((e) => e.type === 'token')
     expect(tokens).toHaveLength(2)
-    expect((tokens[0] as any).content).toBe('Hello')
-    expect((tokens[1] as any).content).toBe(' world')
+    expect(tokens[0]?.content).toBe('Hello')
+    expect(tokens[1]?.content).toBe(' world')
   })
 
   it('updates query record with accumulated answer when done event received', async () => {
@@ -251,7 +254,7 @@ describe('POST /api/ask/stream', () => {
       { type: 'token', content: ' world' },
       { type: 'done', trace_id: 't1', latency_ms: 200 },
     ])
-    vi.mocked(backendClient.askStream as any).mockResolvedValue(stream)
+    mockAskStream.mockResolvedValue(stream)
 
     // Use raw handler call so we can consume the ReadableStream
     const res = await makeRawAuthRequest(POST, { query: 'What is this about?' })
@@ -273,7 +276,7 @@ describe('POST /api/ask/stream', () => {
   it('returns 502 when backendClient.askStream throws before stream starts', async () => {
     // If the Python server is down, the error surfaces as a 502 before any SSE
     const { BackendError } = await import('../../lib/backend-error-mapper')
-    vi.mocked(backendClient.askStream as any).mockRejectedValue(
+    mockAskStream.mockRejectedValue(
       new BackendError('Python server down', 503, 'service_unavailable')
     )
 

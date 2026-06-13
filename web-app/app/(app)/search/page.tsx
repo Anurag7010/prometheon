@@ -215,7 +215,7 @@ export default function SearchPage() {
                   <div>
                     <p className="text-sm font-medium">
                       {results.length} results for{' '}
-                      <span className="text-ember">"{state.data.query}"</span>
+                      <span className="text-ember">&quot;{state.data.query}&quot;</span>
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Strategy: {state.data.strategy} · Sorted by relevance

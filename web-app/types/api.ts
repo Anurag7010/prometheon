@@ -8,7 +8,6 @@ import type {
   Source,
   LatencyBreakdown,
   UpdateDocumentInput,
-  QueryId,
 } from './domain'
 
 // ============================================================

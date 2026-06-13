@@ -57,8 +57,9 @@ describe('useAsk', () => {
 
     // User message is already in the array before AI responds
     expect(result.current.messages).toHaveLength(1)
-    expect(result.current.messages[0].role).toBe('user')
-    expect(result.current.messages[0].content).toBe('what is RAG?')
+    const msg0 = result.current.messages[0]
+    expect(msg0?.role).toBe('user')
+    expect(msg0?.content).toBe('what is RAG?')
 
     // Clean up
     await act(async () => { resolveAsk() })
@@ -73,9 +74,10 @@ describe('useAsk', () => {
     })
 
     expect(result.current.messages).toHaveLength(2)
-    expect(result.current.messages[0].role).toBe('user')
-    expect(result.current.messages[1].role).toBe('assistant')
-    expect(result.current.messages[1].content).toBe('RAG is Retrieval-Augmented Generation.')
+    const [userMsg, assistantMsg] = result.current.messages
+    expect(userMsg?.role).toBe('user')
+    expect(assistantMsg?.role).toBe('assistant')
+    expect(assistantMsg?.content).toBe('RAG is Retrieval-Augmented Generation.')
     expect(result.current.state.status).toBe('success')
   })
 
@@ -84,7 +86,7 @@ describe('useAsk', () => {
     // Only real successful answers appear as assistant messages.
     mockAsk.mockResolvedValue({
       data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Network failed', retryable: true } as any,
+      error: { code: 'NETWORK_ERROR', message: 'Network failed', retryable: true, name: 'ServiceError', originalError: null } as unknown as import('../../services/base-service').ServiceError,
       status: 500,
       latencyMs: 50,
     })
@@ -97,7 +99,7 @@ describe('useAsk', () => {
 
     // Only the user message — no assistant message on failure
     expect(result.current.messages).toHaveLength(1)
-    expect(result.current.messages[0].role).toBe('user')
+    expect(result.current.messages[0]?.role).toBe('user')
     expect(result.current.state.status).toBe('error')
   })
 
@@ -113,17 +115,17 @@ describe('useAsk', () => {
     // Third ask — capture what history was passed
     await act(async () => { await result.current.ask('third question') })
 
-    const thirdCallArgs = mockAsk.mock.calls[2][0]
-    const historyPassedToThirdCall = thirdCallArgs.history ?? []
+    const thirdCallArgs = mockAsk.mock.calls[2]?.[0]
+    const historyPassedToThirdCall = thirdCallArgs?.history ?? []
 
     // History should contain first Q+A and second Q+A — not the third question
     expect(historyPassedToThirdCall).toHaveLength(4)
-    expect(historyPassedToThirdCall[0].content).toBe('first question')
-    expect(historyPassedToThirdCall[1].content).toBe('RAG is Retrieval-Augmented Generation.')
-    expect(historyPassedToThirdCall[2].content).toBe('second question')
-    expect(historyPassedToThirdCall[3].content).toBe('RAG is Retrieval-Augmented Generation.')
+    expect(historyPassedToThirdCall[0]?.content).toBe('first question')
+    expect(historyPassedToThirdCall[1]?.content).toBe('RAG is Retrieval-Augmented Generation.')
+    expect(historyPassedToThirdCall[2]?.content).toBe('second question')
+    expect(historyPassedToThirdCall[3]?.content).toBe('RAG is Retrieval-Augmented Generation.')
     // Third question is NOT in history — it is the current query
-    expect(historyPassedToThirdCall.find((m: any) => m.content === 'third question')).toBeUndefined()
+    expect(historyPassedToThirdCall.find((m: { content: string }) => m.content === 'third question')).toBeUndefined()
   })
 
   it('second ask() aborts the first and its answer does not appear', async () => {
@@ -150,7 +152,8 @@ describe('useAsk', () => {
 
     // Only second question + second answer in messages
     const assistantMessages = result.current.messages.filter(m => m.role === 'assistant')
-    expect(assistantMessages[assistantMessages.length - 1].content).toBe('Second answer')
+    const lastAssistant = assistantMessages[assistantMessages.length - 1]
+    expect(lastAssistant?.content).toBe('Second answer')
   })
 
   it('clearHistory() resets messages and state', async () => {

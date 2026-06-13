@@ -13,7 +13,10 @@ async function listHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
-  const queries = await queriesRepository.findByUser(context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const queries = await queriesRepository.findByUser(userId)
   return NextResponse.json({ data: queries, requestId: context.requestId })
 }
 

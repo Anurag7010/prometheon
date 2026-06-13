@@ -8,6 +8,7 @@ import { ArrowUpRight, Filter, Maximize2, Upload, MessageSquare, Cpu, Archive } 
 import { SpotlightCard, CountUp } from '@/components/ui/motion'
 import { EASE_ENTRANCE, DURATION } from '@/lib/motion'
 import { cn } from '@/lib/cn'
+import { TOKEN_BUDGET_DEFAULT } from '@/lib/constants'
 
 const PERIODS = ['This Week', 'This Month', 'All Time'] as const
 type Period = typeof PERIODS[number]
@@ -113,7 +114,7 @@ export function DashboardClient({
       label: 'Document Index',
     },
     {
-      text: aiStats?.cacheHitRate != null
+      text: aiStats?.cacheHitRate !== null && aiStats?.cacheHitRate !== undefined
         ? `Cache hit rate: ${(aiStats.cacheHitRate * 100).toFixed(0)}% — your queries are lightning fast`
         : 'Cache metrics will appear after your first queries',
       label: 'Cache Performance',
@@ -127,7 +128,7 @@ export function DashboardClient({
   ]
 
   const budgetUsed = aiStats?.totalTokens
-    ? Math.min((aiStats.totalTokens / 100000) * 100, 100)
+    ? Math.min((aiStats.totalTokens / TOKEN_BUDGET_DEFAULT) * 100, 100)
     : 0
 
   function showComingSoon() {
@@ -234,9 +235,9 @@ export function DashboardClient({
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                   >
                     <p className="text-parchment text-lg font-medium leading-relaxed">
-                      {insights[insightIndex].text}
+                      {insights[insightIndex]?.text}
                     </p>
-                    <p className="text-ash-gray text-xs mt-2">{insights[insightIndex].label}</p>
+                    <p className="text-ash-gray text-xs mt-2">{insights[insightIndex]?.label}</p>
                   </motion.div>
                 </AnimatePresence>
               </div>
@@ -468,11 +469,11 @@ export function DashboardClient({
               {[
                 {
                   label: 'Error Rate',
-                  value: aiStats?.errorRate != null ? `${(aiStats.errorRate * 100).toFixed(1)}%` : '--',
+                  value: aiStats?.errorRate !== null && aiStats?.errorRate !== undefined ? `${(aiStats.errorRate * 100).toFixed(1)}%` : '--',
                 },
                 {
                   label: 'Cost Today',
-                  value: aiStats?.estimatedCostUsd != null ? `$${aiStats.estimatedCostUsd.toFixed(4)}` : '--',
+                  value: aiStats?.estimatedCostUsd !== null && aiStats?.estimatedCostUsd !== undefined ? `$${aiStats.estimatedCostUsd.toFixed(4)}` : '--',
                 },
               ].map((metric) => (
                 <div key={metric.label} className="flex justify-between text-xs">

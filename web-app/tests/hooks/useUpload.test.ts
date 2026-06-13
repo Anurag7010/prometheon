@@ -60,7 +60,7 @@ describe('useUpload', () => {
     // Proving error path — service error surfaces in state, not as a throw
     mockIngest.mockResolvedValue({
       data: null,
-      error: { code: 'HTTP_ERROR', message: 'Server error', retryable: false } as any,
+      error: { code: 'HTTP_ERROR', message: 'Server error', retryable: false, name: 'ServiceError', originalError: null } as unknown as import('../../services/base-service').ServiceError,
       status: 500,
       latencyMs: 100,
     })
@@ -101,7 +101,7 @@ describe('useUpload', () => {
     // Test reset from error
     mockIngest.mockResolvedValue({
       data: null,
-      error: { code: 'NETWORK_ERROR', message: 'fail', retryable: true } as any,
+      error: { code: 'NETWORK_ERROR', message: 'fail', retryable: true, name: 'ServiceError', originalError: null } as unknown as import('../../services/base-service').ServiceError,
       status: 500,
       latencyMs: 10,
     })

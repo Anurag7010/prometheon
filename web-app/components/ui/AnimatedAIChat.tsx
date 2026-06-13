@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowUp, FileText, Search, Brain, Sparkles, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -29,12 +29,8 @@ export function AnimatedAIChat({
   placeholder = 'Ask anything. The oracle is ready.',
 }: AnimatedAIChatProps) {
   const [focused, setFocused] = useState(false)
-  const [showCommands, setShowCommands] = useState(false)
+  const showCommands = useMemo(() => value === '/', [value])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => {
-    setShowCommands(value === '/')
-  }, [value])
 
   useEffect(() => {
     const el = textareaRef.current
@@ -52,7 +48,6 @@ export function AnimatedAIChat({
 
   function handleCommandSelect(prefix: string) {
     onChange(prefix + ' ')
-    setShowCommands(false)
     textareaRef.current?.focus()
   }
 

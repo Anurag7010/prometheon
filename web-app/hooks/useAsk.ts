@@ -32,7 +32,7 @@ export function useAsk(): {
     setMessages(prev => {
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
-      if (last.role !== 'assistant') return prev
+      if (!last || last.role !== 'assistant') return prev
       return [...prev.slice(0, -1), { ...last, content: last.content + flushed }]
     })
   }, [])
@@ -170,7 +170,7 @@ export function useAsk(): {
       setMessages(prev => {
         if (prev.length === 0) return prev
         const last = prev[prev.length - 1]
-        if (last.role !== 'assistant') return prev
+        if (!last || last.role !== 'assistant') return prev
         return [
           ...prev.slice(0, -1),
           { ...last, role: streamedMessageRole, ...(sources.length > 0 ? { sources } : {}) },

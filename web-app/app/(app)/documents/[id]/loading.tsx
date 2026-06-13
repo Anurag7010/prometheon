@@ -1,6 +1,4 @@
-import { SkeletonCard } from "@/components/ui/Skeleton";
-import { SkeletonText } from "@/components/ui/Skeleton";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { SkeletonCard, Skeleton } from "@/components/ui/Skeleton";
 
 export default function DocumentDetailLoading() {
   return (

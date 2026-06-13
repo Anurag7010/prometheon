@@ -2,7 +2,7 @@ import 'server-only'
 
 import { eq, desc } from 'drizzle-orm'
 import db from '../connection'
-import { searchHistory, type SearchHistory, type NewSearchHistory } from '../schema'
+import { searchHistory, type SearchHistory } from '../schema'
 
 export async function addSearchHistory(data: {
   userId: string

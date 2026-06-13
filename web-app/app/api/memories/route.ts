@@ -14,7 +14,10 @@ async function getHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
-  const result = await backendClient.listMemories(context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const result = await backendClient.listMemories(userId)
   return NextResponse.json(result)
 }
 

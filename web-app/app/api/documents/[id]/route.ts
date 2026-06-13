@@ -34,9 +34,12 @@ async function getHandler(
   req: NextRequest,
   context: RequestContext & { params: { id: string } }
 ): Promise<NextResponse> {
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
   const { document, error } = await getOwnedDocument(
     context.params.id,
-    context.userId!
+    userId
   )
 
   if (error === 'not_found') {
@@ -59,9 +62,12 @@ async function patchHandler(
   req: NextRequest,
   context: RequestContext & { params: { id: string } }
 ): Promise<NextResponse> {
-  const { document, error } = await getOwnedDocument(
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const { error } = await getOwnedDocument(
     context.params.id,
-    context.userId!
+    userId
   )
 
   if (error === 'not_found') {
@@ -92,7 +98,10 @@ async function deleteHandler(
   req: NextRequest,
   context: RequestContext & { params: { id: string } }
 ): Promise<NextResponse> {
-  const { error } = await getOwnedDocument(context.params.id, context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const { error } = await getOwnedDocument(context.params.id, userId)
 
   if (error === 'not_found') {
     return NextResponse.json(
@@ -120,24 +129,24 @@ async function deleteHandler(
 type RouteProps = { params: Promise<{ id: string }> }
 
 const wrappedGet = compose(withErrorHandler, withRequestId, withLogging, withAuth({ required: true }))(
-  (req, ctx) => getHandler(req, ctx as any)
+  (req, ctx) => getHandler(req, ctx as unknown as RequestContext & { params: { id: string } })
 )
 const wrappedPatch = compose(withErrorHandler, withRequestId, withLogging, withAuth({ required: true }), withValidation(UpdateStatusSchema))(
-  (req, ctx) => patchHandler(req, ctx as any)
+  (req, ctx) => patchHandler(req, ctx as unknown as RequestContext & { params: { id: string } })
 )
 const wrappedDelete = compose(withErrorHandler, withRequestId, withLogging, withAuth({ required: true }))(
-  (req, ctx) => deleteHandler(req, ctx as any)
+  (req, ctx) => deleteHandler(req, ctx as unknown as RequestContext & { params: { id: string } })
 )
 
 export async function GET(req: NextRequest, { params }: RouteProps) {
   const resolvedParams = await params;
-  return wrappedGet(req, { requestId: '', startTime: 0, params: resolvedParams } as any)
+  return wrappedGet(req, { requestId: '', startTime: 0, params: resolvedParams } as unknown as RequestContext)
 }
 export async function PATCH(req: NextRequest, { params }: RouteProps) {
   const resolvedParams = await params;
-  return wrappedPatch(req, { requestId: '', startTime: 0, params: resolvedParams } as any)
+  return wrappedPatch(req, { requestId: '', startTime: 0, params: resolvedParams } as unknown as RequestContext)
 }
 export async function DELETE(req: NextRequest, { params }: RouteProps) {
   const resolvedParams = await params;
-  return wrappedDelete(req, { requestId: '', startTime: 0, params: resolvedParams } as any)
+  return wrappedDelete(req, { requestId: '', startTime: 0, params: resolvedParams } as unknown as RequestContext)
 }

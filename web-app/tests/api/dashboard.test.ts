@@ -33,6 +33,7 @@ import { GET } from '../../app/api/dashboard/stats/route'
 
 const mockDocumentsRepo = db.documentsRepository as typeof db.documentsRepository
 const mockQueriesRepo = db.queriesRepository as typeof db.queriesRepository
+const mockGetMetrics = backendClient.getMetrics as unknown as ReturnType<typeof vi.fn>
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -86,12 +87,12 @@ describe('GET /api/dashboard/stats', () => {
   it('returns 200 with correct response shape on valid auth', async () => {
     vi.mocked(mockDocumentsRepo.findByUser).mockResolvedValue([])
     vi.mocked(mockQueriesRepo.findByUser).mockResolvedValue([])
-    vi.mocked(backendClient.getMetrics as any).mockResolvedValue(MOCK_AI_METRICS)
+    mockGetMetrics.mockResolvedValue(MOCK_AI_METRICS)
 
     const res = await makeAuthRequest(GET)
 
     expect(res.status).toBe(200)
-    const body = res.body as any
+    const body = res.body as { documents: { total: number; ingested: number; failed: number; pending: number }; queries: { total: number; last24h: number } }
     expect(body).toHaveProperty('documents')
     expect(body).toHaveProperty('queries')
     expect(body).toHaveProperty('ai')
@@ -106,12 +107,12 @@ describe('GET /api/dashboard/stats', () => {
     ]
     vi.mocked(mockDocumentsRepo.findByUser).mockResolvedValue(docs)
     vi.mocked(mockQueriesRepo.findByUser).mockResolvedValue([])
-    vi.mocked(backendClient.getMetrics as any).mockResolvedValue(MOCK_AI_METRICS)
+    mockGetMetrics.mockResolvedValue(MOCK_AI_METRICS)
 
     const res = await makeAuthRequest(GET)
 
     expect(res.status).toBe(200)
-    const body = res.body as any
+    const body = res.body as { documents: { total: number; ingested: number; failed: number; pending: number }; queries: { total: number; last24h: number } }
     expect(body.documents.total).toBe(4)
     expect(body.documents.ingested).toBe(2)
     expect(body.documents.failed).toBe(1)
@@ -123,12 +124,12 @@ describe('GET /api/dashboard/stats', () => {
     const oldQuery = makeQuery(new Date(Date.now() - 30 * 60 * 60 * 1000))    // 30h ago
     vi.mocked(mockDocumentsRepo.findByUser).mockResolvedValue([])
     vi.mocked(mockQueriesRepo.findByUser).mockResolvedValue([recentQuery, oldQuery])
-    vi.mocked(backendClient.getMetrics as any).mockResolvedValue(MOCK_AI_METRICS)
+    mockGetMetrics.mockResolvedValue(MOCK_AI_METRICS)
 
     const res = await makeAuthRequest(GET)
 
     expect(res.status).toBe(200)
-    const body = res.body as any
+    const body = res.body as { documents: { total: number; ingested: number; failed: number; pending: number }; queries: { total: number; last24h: number } }
     expect(body.queries.total).toBe(2)
     expect(body.queries.last24h).toBe(1)
   })
@@ -136,13 +137,13 @@ describe('GET /api/dashboard/stats', () => {
   it('ai field is null when backendClient.getMetrics throws', async () => {
     vi.mocked(mockDocumentsRepo.findByUser).mockResolvedValue([])
     vi.mocked(mockQueriesRepo.findByUser).mockResolvedValue([])
-    vi.mocked(backendClient.getMetrics as any).mockRejectedValue(new Error('backend down'))
+    mockGetMetrics.mockRejectedValue(new Error('backend down'))
 
     const res = await makeAuthRequest(GET)
 
     // Non-fatal — rest of dashboard still returns 200
     expect(res.status).toBe(200)
-    const body = res.body as any
+    const body = res.body as { documents: { total: number; ingested: number; failed: number; pending: number }; queries: { total: number; last24h: number }; ai: unknown }
     expect(body.ai).toBeNull()
   })
 
@@ -154,7 +155,7 @@ describe('GET /api/dashboard/stats', () => {
   it('response has Cache-Control: private, max-age=30 header', async () => {
     vi.mocked(mockDocumentsRepo.findByUser).mockResolvedValue([])
     vi.mocked(mockQueriesRepo.findByUser).mockResolvedValue([])
-    vi.mocked(backendClient.getMetrics as any).mockResolvedValue(MOCK_AI_METRICS)
+    mockGetMetrics.mockResolvedValue(MOCK_AI_METRICS)
 
     const res = await makeAuthRequest(GET)
 

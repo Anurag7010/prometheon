@@ -5,13 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge, DocumentStatusBadge } from "@/components/ui/Badge";
+import { DocumentStatusBadge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table } from "@/components/ui/Table";
 import { RelativeTime } from "@/components/ui/RelativeTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { Stack } from "@/components/ui/Stack";
 import type { Document, Query } from "@/types";
 
 interface DocumentDetailViewProps {

@@ -52,7 +52,7 @@ function ArrowRight() {
   )
 }
 
-export function ChatInterface({ documentId, documentName }: ChatInterfaceProps) {
+export function ChatInterface({ documentId: _documentId, documentName }: ChatInterfaceProps) {
   const [query, setQuery] = useState('')
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)

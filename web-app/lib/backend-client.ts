@@ -115,7 +115,7 @@ function toSource(raw: PythonSource): Source {
     content: raw.content,
     score: raw.score ?? null,
     metadata: raw.metadata,
-    ...(raw.citation_id != null ? { citationId: raw.citation_id } : {}),
+    ...(raw.citation_id !== null && raw.citation_id !== undefined ? { citationId: raw.citation_id } : {}),
   }
 }
 
@@ -177,7 +177,7 @@ function toMemory(raw: PythonMemory): Memory {
     createdAt: raw.created_at,
     lastAccessed: raw.last_accessed,
     accessCount: raw.access_count,
-    ...(raw.similarity != null ? { similarity: raw.similarity } : {}),
+    ...(raw.similarity !== null && raw.similarity !== undefined ? { similarity: raw.similarity } : {}),
   }
 }
 

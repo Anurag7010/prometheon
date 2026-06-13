@@ -6,6 +6,12 @@ import type { Document as DomainDocument } from '@/types'
 // server-only guard would throw in jsdom — stub it out for tests
 vi.mock('server-only', () => ({}))
 
+// next/cache revalidateTag is not available in jsdom
+vi.mock('next/cache', () => ({
+  revalidateTag: vi.fn(),
+  unstable_cache: vi.fn((fn: unknown) => fn),
+}))
+
 // lib/jwt uses jose which has a cross-realm Uint8Array issue in vitest VM isolation.
 import { jwtMock } from '../setup/jwt-mock'
 vi.mock('../../lib/jwt', () => jwtMock())
@@ -40,12 +46,20 @@ vi.mock('../../db', () => ({
 import * as db from '../../db'
 const documentsRepo = db.documentsRepository as typeof db.documentsRepository
 import { backendClient } from '../../lib/backend-client'
+const mockIngest = backendClient.ingest as unknown as ReturnType<typeof vi.fn>
 import { GET, POST } from '../../app/api/documents/route'
 import {
-  GET as getById,
-  PATCH,
-  DELETE,
+  GET as _getById,
+  PATCH as _PATCH,
+  DELETE as _DELETE,
 } from '../../app/api/documents/[id]/route'
+import type { NextRequest, NextResponse } from 'next/server'
+// Next.js 15 route params are Promise-typed; test helper passes plain objects at runtime.
+// Cast to a compatible handler shape for test use.
+type CompatHandler = (req: NextRequest, ctx?: Record<string, unknown>) => Promise<NextResponse>
+const getById = _getById as unknown as CompatHandler
+const PATCH = _PATCH as unknown as CompatHandler
+const DELETE = _DELETE as unknown as CompatHandler
 
 const mockDocument: DomainDocument = {
   id: toDocumentId('doc-001'),
@@ -73,7 +87,7 @@ describe('GET /api/documents', () => {
     const res = await makeAuthRequest(GET)
 
     expect(res.status).toBe(200)
-    expect((res.body as any).data).toHaveLength(1)
+    expect((res.body as Record<string, unknown[]>).data).toHaveLength(1)
   })
 
   it('calls findByUser with correct userId from auth context', async () => {
@@ -90,7 +104,7 @@ describe('GET /api/documents', () => {
     const res = await makeAuthRequest(GET)
 
     expect(res.status).toBe(200)
-    expect((res.body as any).data).toEqual([])
+    expect((res.body as Record<string, unknown[]>).data).toEqual([])
   })
 
   it('returns 401 when Authorization header is missing', async () => {
@@ -130,12 +144,12 @@ describe('POST /api/documents', () => {
   it('returns 201 with IngestResponse on valid file upload', async () => {
     vi.mocked(documentsRepo.create).mockResolvedValue(mockDocument)
     vi.mocked(documentsRepo.updateStatus).mockResolvedValue({ ...mockDocument, status: 'ingested', chunkCount: 5 })
-    vi.mocked(backendClient.ingest as any).mockResolvedValue({ status: 'ok', chunkCount: 5, error: null })
+    mockIngest.mockResolvedValue({ status: 'ok', chunkCount: 5, error: null })
 
     const res = await makeFormDataRequest(POST, makeTestFormData())
 
     expect(res.status).toBe(201)
-    const body = res.body as any
+    const body = res.body as { data: Record<string, unknown> }
     expect(body.data.status).toBe('ingested')
     expect(body.data.chunkCount).toBe(5)
   })
@@ -143,7 +157,7 @@ describe('POST /api/documents', () => {
   it('returns Location header pointing to created document', async () => {
     vi.mocked(documentsRepo.create).mockResolvedValue(mockDocument)
     vi.mocked(documentsRepo.updateStatus).mockResolvedValue({ ...mockDocument, status: 'ingested' })
-    vi.mocked(backendClient.ingest as any).mockResolvedValue({ status: 'ok', chunkCount: 3, error: null })
+    mockIngest.mockResolvedValue({ status: 'ok', chunkCount: 3, error: null })
 
     const res = await makeFormDataRequest(POST, makeTestFormData())
 
@@ -153,7 +167,7 @@ describe('POST /api/documents', () => {
   it('calls create() with userId from auth context', async () => {
     vi.mocked(documentsRepo.create).mockResolvedValue(mockDocument)
     vi.mocked(documentsRepo.updateStatus).mockResolvedValue({ ...mockDocument, status: 'ingested' })
-    vi.mocked(backendClient.ingest as any).mockResolvedValue({ status: 'ok', chunkCount: 1, error: null })
+    mockIngest.mockResolvedValue({ status: 'ok', chunkCount: 1, error: null })
 
     await makeFormDataRequest(POST, makeTestFormData())
 
@@ -177,7 +191,7 @@ describe('POST /api/documents', () => {
   it('marks document as failed and returns 502 when backend ingest fails', async () => {
     vi.mocked(documentsRepo.create).mockResolvedValue(mockDocument)
     vi.mocked(documentsRepo.updateStatus).mockResolvedValue({ ...mockDocument, status: 'failed' })
-    vi.mocked(backendClient.ingest as any).mockResolvedValue({
+    mockIngest.mockResolvedValue({
       status: 'error', chunkCount: 0, error: 'Pipeline failed'
     })
 
@@ -203,7 +217,7 @@ describe('GET /api/documents/[id]', () => {
     const res = await makeAuthRequest(getById, { params: { id: 'doc-001' } })
 
     expect(res.status).toBe(200)
-    expect((res.body as any).data.id).toBe('doc-001')
+    expect((res.body as { data: Record<string, unknown> }).data.id).toBe('doc-001')
   })
 
   it('returns 404 when document does not exist', async () => {
@@ -253,7 +267,7 @@ describe('PATCH /api/documents/[id]', () => {
     })
 
     expect(res.status).toBe(200)
-    expect((res.body as any).data.status).toBe('ingested')
+    expect((res.body as { data: Record<string, unknown> }).data.status).toBe('ingested')
   })
 
   it('returns 422 on invalid status value', async () => {

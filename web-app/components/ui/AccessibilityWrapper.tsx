@@ -20,6 +20,7 @@ export function AccessibilityWrapper({ children }: { children: React.ReactNode }
       }, 100)
       return () => clearTimeout(id)
     }
+    return undefined
   }, [pathname])
 
   return (

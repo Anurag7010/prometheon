@@ -16,7 +16,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        code({ node, className: codeClass, children, ...props }) {
+        code({ className: codeClass, children, ...props }) {
           const match = /language-(\w+)/.exec(codeClass || '')
           const code = String(children).replace(/\n$/, '')
           const isBlock = Boolean(match)
@@ -25,7 +25,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
             return (
               <div className="relative my-3">
                 <div className="flex items-center justify-between px-4 py-2 bg-muted/80 border-b border-border rounded-t-lg">
-                  <span className="text-xs font-mono text-muted-foreground">{match![1]}</span>
+                  <span className="text-xs font-mono text-muted-foreground">{match?.[1]}</span>
                   <CopyButton text={code} />
                 </div>
                 <pre className="m-0 rounded-t-none rounded-b-lg">

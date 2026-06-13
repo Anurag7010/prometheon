@@ -23,6 +23,7 @@ export async function createUser(data: {
   passwordHash: string
 }): Promise<User> {
   const [row] = await db.insert(users).values(data).returning()
+  if (!row) throw new Error('createUser: insert returned no row')
   const { passwordHash: _ph, tokenVersion: _tv, ...safe } = row
   return safe
 }

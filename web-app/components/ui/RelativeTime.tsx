@@ -7,7 +7,7 @@
 //    A client component re-renders on the interval to keep the time current.
 // 3. It uses Tooltip which is also 'use client'
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
 
@@ -33,7 +33,10 @@ function formatRelative(date: Date): string {
 }
 
 export function RelativeTime({ date, className }: RelativeTimeProps) {
-  const dateObj = typeof date === "string" ? new Date(date) : date;
+  const dateObj = useMemo(
+    () => (typeof date === "string" ? new Date(date) : date),
+    [date]
+  );
 
   const [relative, setRelative] = useState(() => formatRelative(dateObj));
 

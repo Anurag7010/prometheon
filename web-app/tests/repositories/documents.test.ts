@@ -104,7 +104,7 @@ describe('documentsRepository.findById()', () => {
   it('returns null for valid UUID belonging to different user', async () => {
     // Proves findById is ID-only — ownership check is in the route handler
     const user1 = await seedUser()
-    const user2 = await seedUser({ email: 'user2@example.com' })
+    const _user2 = await seedUser({ email: 'user2@example.com' })
     const doc = await seedDocument(user1.id)
 
     // user2 tries to look up user1's document by ID — still returns it
@@ -131,8 +131,8 @@ describe('documentsRepository.findByUser()', () => {
 
     const results = await documentsRepo.findByUser(user.id)
 
-    expect(results[0].id).toBe(doc2.id) // newest first
-    expect(results[1].id).toBe(doc1.id)
+    expect(results[0]?.id).toBe(doc2.id) // newest first
+    expect(results[1]?.id).toBe(doc1.id)
   })
 
   it('returns empty array when user has no documents', async () => {
@@ -146,12 +146,12 @@ describe('documentsRepository.findByUser()', () => {
   it('does not return documents belonging to other users', async () => {
     // Proves user isolation — user2 cannot see user1's documents
     const user1 = await seedUser()
-    const user2 = await seedUser({ email: 'user2@example.com' })
+    const _user2 = await seedUser({ email: 'user2@example.com' })
 
     await seedDocument(user1.id)
     await seedDocument(user1.id)
 
-    const results = await documentsRepo.findByUser(user2.id)
+    const results = await documentsRepo.findByUser(_user2.id)
     expect(results).toHaveLength(0)
   })
 
@@ -225,21 +225,20 @@ describe('documentsRepository.deleteDocument()', () => {
     expect(result).toBe(false)
   })
 
-  it('cascades to related queries when document is deleted', async () => {
-    // Proves ON DELETE CASCADE works at DB level — not just schema definition
+  it('nullifies document_id on related queries when document is deleted', async () => {
+    // Schema uses ON DELETE SET NULL: query survives but document_id becomes null
     const user = await seedUser()
     const doc = await seedDocument(user.id)
     const query = await seedQuery(user.id, doc.id)
 
     await documentsRepo.deleteDocument(doc.id)
 
-    // Query should be gone — cascade deleted it
-    const { testDb: db } = await import('../setup/db')
     const { queries } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
 
     const remaining = await testDb.select().from(queries).where(eq(queries.id, query.id))
-    expect(remaining).toHaveLength(0)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]!.documentId).toBeNull()
   })
 
   it('does not affect other documents', async () => {

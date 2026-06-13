@@ -25,7 +25,9 @@ interface TooltipProps {
 
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null
-  const ms = payload[0].value
+  const entry = payload[0]
+  if (!entry) return null
+  const ms = entry.value
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg text-xs">
       <p className="text-muted-foreground mb-1">{label}</p>

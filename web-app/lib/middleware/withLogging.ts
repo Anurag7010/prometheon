@@ -26,7 +26,7 @@ export const withLogging: Middleware = (handler) => {
     if (response.status >= 400) {
       console.error('[request]', JSON.stringify(logEntry))
     } else {
-      console.info('[request]', JSON.stringify(logEntry))
+      console.warn('[request]', JSON.stringify(logEntry))
     }
 
     return response

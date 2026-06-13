@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AIService } from '../../services/ai-service'
-import { BaseService, ServiceResponse } from '../../services/base-service'
+import { BaseService, ServiceError, ServiceResponse } from '../../services/base-service'
 
 // ============================================================
 // AIService tests spy on BaseService.prototype.request — not fetch.
@@ -16,18 +16,10 @@ function makeSuccessResponse<T>(data: T): ServiceResponse<T> {
 }
 
 function makeErrorResponse(): ServiceResponse<null> {
-  return {
-    data: null,
-    error: {
-      name: 'ServiceError',
-      code: 'NETWORK_ERROR',
-      message: 'error',
-      retryable: false,
-      originalError: null,
-    } as any,
-    status: null,
-    latencyMs: 5,
-  }
+  const err = new ServiceError()
+  err.code = 'NETWORK_ERROR'
+  err.retryable = false
+  return { data: null, error: err, status: null, latencyMs: 5 }
 }
 
 // ============================================================
@@ -40,7 +32,7 @@ describe('AIService — ask', () => {
 
   beforeEach(() => {
     service = new AIService()
-    requestSpy = vi.spyOn(BaseService.prototype as any, 'request')
+    requestSpy = vi.spyOn(BaseService.prototype as unknown as { request: (...args: unknown[]) => Promise<unknown> }, 'request')
   })
 
   afterEach(() => {
@@ -118,7 +110,7 @@ describe('AIService — ask', () => {
     const response = await service.ask({ query: 'capital of France?' })
 
     expect(response.data?.answer).toBe('Paris is the capital')
-    expect(response.data?.sources[0].score).toBe(0.95)
+    expect(response.data?.sources[0]?.score).toBe(0.95)
     expect(response.data?.traceId).toBe('trace-xyz')
     expect(response.error).toBeNull()
   })
@@ -144,7 +136,7 @@ describe('AIService — ingest', () => {
 
   beforeEach(() => {
     service = new AIService()
-    requestSpy = vi.spyOn(BaseService.prototype as any, 'request')
+    requestSpy = vi.spyOn(BaseService.prototype as unknown as { request: (...args: unknown[]) => Promise<unknown> }, 'request')
   })
 
   afterEach(() => {
@@ -218,7 +210,7 @@ describe('AIService — retrieve', () => {
 
   beforeEach(() => {
     service = new AIService()
-    requestSpy = vi.spyOn(BaseService.prototype as any, 'request')
+    requestSpy = vi.spyOn(BaseService.prototype as unknown as { request: (...args: unknown[]) => Promise<unknown> }, 'request')
   })
 
   afterEach(() => {
@@ -275,8 +267,8 @@ describe('AIService — retrieve', () => {
     const response = await service.retrieve('neural networks')
 
     expect(response.data?.chunks).toHaveLength(1)
-    expect(response.data?.chunks[0].score).toBe(0.92)
-    expect(response.data?.chunks[0].content).toBe('relevant text')
+    expect(response.data?.chunks[0]?.score).toBe(0.92)
+    expect(response.data?.chunks[0]?.content).toBe('relevant text')
     expect(response.error).toBeNull()
   })
 

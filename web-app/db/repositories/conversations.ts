@@ -2,7 +2,7 @@ import 'server-only'
 
 import { eq, and, desc } from 'drizzle-orm'
 import db from '../connection'
-import { conversations, type Conversation, type NewConversation } from '../schema'
+import { conversations, type Conversation } from '../schema'
 
 /** Insert a new conversation for a user, returning the created row. */
 export async function createConversation(data: { userId: string; title?: string }): Promise<Conversation> {
@@ -10,6 +10,7 @@ export async function createConversation(data: { userId: string; title?: string 
     .insert(conversations)
     .values({ userId: data.userId, title: data.title ?? 'New Conversation' })
     .returning()
+  if (!row) throw new Error('createConversation: insert returned no row')
   return row
 }
 

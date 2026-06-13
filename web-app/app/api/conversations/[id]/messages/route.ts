@@ -16,7 +16,10 @@ async function getHandler(
   req: NextRequest,
   context: RequestContext & { params: { id: string } }
 ): Promise<NextResponse> {
-  const conversation = await findConversationById(context.params.id, context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const conversation = await findConversationById(context.params.id, userId)
   if (!conversation) {
     return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
   }
@@ -34,5 +37,5 @@ const wrappedGet = compose(
 
 export async function GET(req: NextRequest, { params }: RouteProps) {
   const resolvedParams = await params
-  return wrappedGet(req, { requestId: '', startTime: 0, params: resolvedParams } as any)
+  return wrappedGet(req, { requestId: '', startTime: 0, params: resolvedParams } as unknown as RequestContext)
 }

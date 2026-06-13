@@ -1,12 +1,22 @@
+import dotenv from 'dotenv'
+import path from 'path'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import * as schema from '../../db/schema'
 import { users, documents, queries } from '../../db/schema'
 
+// Load env files so DATABASE_URL_TEST is available in process.env
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
+dotenv.config({ path: path.resolve(process.cwd(), '.env') })
+
 if (!process.env.DATABASE_URL_TEST) {
-  throw new Error('DATABASE_URL_TEST is not set — check .env.test')
+  throw new Error('DATABASE_URL_TEST is not set — check .env.local')
 }
+
+// Point DATABASE_URL at the test database so repository modules use the test DB
+// This must happen before any import that triggers db/connection.ts
+process.env.DATABASE_URL = process.env.DATABASE_URL_TEST
 
 // Separate connection for test database — never touches dev data
 export const testPool = postgres(process.env.DATABASE_URL_TEST)
@@ -36,6 +46,7 @@ export async function seedUser(overrides: Partial<schema.NewUser> = {}): Promise
       ...overrides,
     })
     .returning()
+  if (!user) throw new Error('seedUser: insert returned no row')
   return user
 }
 
@@ -54,6 +65,7 @@ export async function seedDocument(
       ...overrides,
     })
     .returning()
+  if (!document) throw new Error('seedDocument: insert returned no row')
   return document
 }
 
@@ -74,5 +86,6 @@ export async function seedQuery(
       ...overrides,
     })
     .returning()
+  if (!query) throw new Error('seedQuery: insert returned no row')
   return query
 }

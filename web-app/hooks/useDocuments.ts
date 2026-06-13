@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useAsyncState } from './useAsyncState'
+import { logError } from '@/lib/error-logger'
 import type { DocumentSummary, DocumentId } from '../types'
 import type { AsyncState } from '../types'
 
@@ -51,7 +52,7 @@ export function useDocuments(): {
       // means the document still exists, so the list is still correct.
       // Surfacing the error in list state would replace the document list
       // with an error screen, which is wrong — the list is fine.
-      console.error('[useDocuments] deleteDocument failed:', err)
+      logError(err instanceof Error ? err : new Error(String(err)))
     }
   }, [state, execute])
 

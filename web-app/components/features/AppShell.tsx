@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Sidebar } from '@/components/nav/Sidebar'
 import { MobileSidebar } from '@/components/nav/MobileSidebar'
@@ -15,14 +15,10 @@ interface AppShellProps {
 }
 
 export function AppShell({ email, children }: AppShellProps) {
-  const [showOnboarding, setShowOnboarding] = useState(false)
-
-  useEffect(() => {
+  const [showOnboarding, setShowOnboarding] = useState(() => {
     const state = getLocalOnboardingState()
-    if (shouldShowOnboarding(state, false)) {
-      setShowOnboarding(true)
-    }
-  }, [])
+    return shouldShowOnboarding(state, false)
+  })
 
   return (
     <div className="flex h-screen overflow-hidden bg-ember-black">

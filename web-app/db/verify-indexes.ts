@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 type PlanRow = { 'QUERY PLAN': string }
 
 async function verifyIndexes(): Promise<void> {
-  console.log('Verifying database indexes...\n')
+  console.warn('Verifying database indexes...\n')
 
   const queries: Array<{ name: string; query: ReturnType<typeof sql> }> = [
     {
@@ -26,18 +26,18 @@ async function verifyIndexes(): Promise<void> {
   ]
 
   for (const { name, query } of queries) {
-    console.log(`Query: ${name}`)
+    console.warn(`Query: ${name}`)
     try {
       const rows = (await db.execute(query)) as PlanRow[]
       const plan = rows.map((r) => r['QUERY PLAN']).join('\n')
       const usesIndex = plan.includes('Index Scan') || plan.includes('Index Only Scan')
       const usesScan = plan.includes('Seq Scan')
-      console.log(usesIndex ? '✓ Using index' : usesScan ? '✗ Sequential scan — ADD INDEX' : '? Unknown')
-      console.log(plan.split('\n')[0])
+      console.warn(usesIndex ? '✓ Using index' : usesScan ? '✗ Sequential scan — ADD INDEX' : '? Unknown')
+      console.warn(plan.split('\n')[0])
     } catch (err) {
-      console.log(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`)
     }
-    console.log()
+    console.warn()
   }
 
   process.exit(0)

@@ -33,6 +33,7 @@ export async function create(data: NewQuery): Promise<Query> {
     .values(data)
     .returning()
 
+  if (!created) throw new Error('create: insert returned no row')
   return created
 }
 

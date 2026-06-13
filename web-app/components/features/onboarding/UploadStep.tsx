@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/cn'
+import { INGESTION_POLL_INTERVAL_MS } from '@/lib/constants'
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'ready' | 'error'
 
@@ -62,7 +63,7 @@ export function UploadStep({ onComplete, onSkip, onBack }: UploadStepProps) {
             return
           }
         }
-        await new Promise((r) => setTimeout(r, 2000))
+        await new Promise((r) => setTimeout(r, INGESTION_POLL_INTERVAL_MS))
         await poll()
       }
       await poll()
@@ -99,7 +100,7 @@ export function UploadStep({ onComplete, onSkip, onBack }: UploadStepProps) {
         <div className="text-center mb-8 animate-in">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Step 2 of 3</p>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">Upload a document</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Drop a PDF to get started. We'll chunk and index it for you.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Drop a PDF to get started. We&apos;ll chunk and index it for you.</p>
         </div>
 
         {status === 'idle' ? (

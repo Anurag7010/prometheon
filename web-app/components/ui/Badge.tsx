@@ -1,4 +1,3 @@
-import { cn } from "@/lib/cn";
 import { getBadgeClasses, documentStatusVariant } from "@/lib/variants";
 import type { DocumentStatus } from "@/types";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 // Module-level storage — persists across renders, lost on page refresh
@@ -26,7 +26,7 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function refresh(): Promise<boolean> {
+  const refresh = useCallback(async (): Promise<boolean> => {
     try {
       const res = await fetch("/api/auth/refresh", { method: "POST" });
       if (!res.ok) return false;
@@ -37,29 +37,43 @@ export function useAuth() {
     } catch {
       return false;
     }
-  }
+  }, []);
 
-  function scheduleRefresh() {
+  // scheduleRefresh lives in a ref so the timeout callback always calls the
+  // latest version without a circular useCallback dependency.
+  const scheduleRefreshRef = useRef<(() => void) | null>(null);
+
+  const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     // Access token expires in 15min — refresh 1min before
     refreshTimer.current = setTimeout(async () => {
       const ok = await refresh();
-      if (ok) scheduleRefresh();
+      if (ok) scheduleRefreshRef.current?.();
     }, 14 * 60 * 1000);
-  }
+  }, [refresh]);
+
+  // Keep the ref in sync with the latest stable callback via an effect,
+  // so we never mutate the ref during render.
+  useEffect(() => {
+    scheduleRefreshRef.current = scheduleRefresh;
+  }, [scheduleRefresh]);
 
   useEffect(() => {
+    let cancelled = false
     // On mount: try to restore session via refresh cookie
-    refresh().then((ok) => {
+    async function init() {
+      const ok = await refresh();
+      if (cancelled) return;
       if (ok) scheduleRefresh();
       setIsLoading(false);
-    });
+    }
+    init()
 
     return () => {
+      cancelled = true
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refresh, scheduleRefresh]);
 
   async function login(email: string, password: string): Promise<void> {
     const res = await fetch("/api/auth/login", {

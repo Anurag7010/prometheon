@@ -85,7 +85,7 @@ export function DocumentManager(): React.ReactElement {
     for (const item of newQueue) {
       setQueue((q) => q.map((x) => x.id === item.id ? { ...x, status: 'uploading' } : x))
       resetSignal()
-      const res = await upload(item.file, signal)
+      await upload(item.file, signal)
       setQueue((q) => q.map((x) =>
         x.id === item.id ? { ...x, status: 'done' } : x
       ))

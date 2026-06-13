@@ -8,7 +8,8 @@ import { eq, gte, and } from 'drizzle-orm'
 import { subDays, format, startOfDay } from 'date-fns'
 
 async function chartsHandler(req: NextRequest, context: RequestContext): Promise<NextResponse> {
-  const userId = context.userId!
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
   const since = subDays(new Date(), 7)
 
   const recentQueries = await db
@@ -36,17 +37,17 @@ async function chartsHandler(req: NextRequest, context: RequestContext): Promise
     const day = format(startOfDay(new Date(q.createdAt)), 'MMM d')
     if (buckets[day]) {
       buckets[day].count++
-      if (q.latencyMs != null) buckets[day].latencies.push(q.latencyMs)
+      if (q.latencyMs !== null && q.latencyMs !== undefined) buckets[day].latencies.push(q.latencyMs)
     }
   }
 
   const queryVolumeData = days.map(d => ({
     date: d,
-    queries: buckets[d].count,
+    queries: buckets[d]?.count ?? 0,
   }))
 
   const latencyData = days.map(d => {
-    const lats = buckets[d].latencies
+    const lats = buckets[d]?.latencies ?? []
     return {
       date: d,
       avgLatencyMs: lats.length > 0

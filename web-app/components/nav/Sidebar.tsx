@@ -172,7 +172,7 @@ function NavItem({ href, label, icon: Icon }: NavItemProps) {
 }
 
 function UserAvatar({ email }: { email: string }) {
-  const initials = email.split("@")[0].slice(0, 2).toUpperCase();
+  const initials = (email.split("@")[0] ?? email).slice(0, 2).toUpperCase();
 
   return (
     <div

@@ -12,9 +12,11 @@ import { RequestContext } from '@/lib/middleware/types'
 import { queriesRepository } from '@/db'
 import { backendClient } from '@/lib/backend-client'
 import { BackendError, mapBackendError } from '@/lib/backend-error-mapper'
+import { logError } from '@/lib/error-logger'
+import { MAX_QUERY_LENGTH } from '@/lib/constants'
 
 const AskSchema = z.object({
-  query: z.string().min(1, 'Query is required').max(2000),
+  query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
   topK: z.number().int().min(1).max(20).optional().default(5),
   strategy: z.enum(['semantic', 'hybrid', 'multi_query', 'rrf']).optional().default('semantic'),
   history: z.array(z.object({
@@ -29,9 +31,11 @@ async function streamHandler(
   context: RequestContext
 ): Promise<NextResponse> {
   const body = context.parsedBody as z.infer<typeof AskSchema>
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
 
   const queryRecord = await queriesRepository.create({
-    userId: context.userId!,
+    userId,
     queryText: body.query,
     documentId: body.documentId ?? null,
   })
@@ -82,7 +86,7 @@ async function streamHandler(
             // Fire and forget — do not block the stream
             queriesRepository
               .updateAnswer(queryRecord.id, accumulatedAnswer, latencyMs, { traceId })
-              .catch(console.error)
+              .catch((err: unknown) => logError(err instanceof Error ? err : new Error(String(err))))
           }
         } catch {
           // Malformed JSON event — pass through unchanged
@@ -93,7 +97,7 @@ async function streamHandler(
   })
 
   // Pipe Python stream through transform; errors in the pipe are logged, not thrown
-  pythonStream.pipeTo(writable).catch(console.error)
+  pythonStream.pipeTo(writable).catch((err: unknown) => logError(err instanceof Error ? err : new Error(String(err))))
 
   return new Response(readable, {
     headers: {

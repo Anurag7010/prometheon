@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   type OnboardingStep,
   getLocalOnboardingState,
@@ -17,18 +17,18 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ onDone }: OnboardingFlowProps) {
-  const [step, setStep] = useState<OnboardingStep>('welcome')
-  const [documentId, setDocumentId] = useState('')
-  const [documentName, setDocumentName] = useState('')
-
-  useEffect(() => {
+  const [step, setStep] = useState<OnboardingStep>(() => {
     const saved = getLocalOnboardingState()
-    if (saved.step !== 'complete') {
-      setStep(saved.step)
-      if (saved.documentId) setDocumentId(saved.documentId)
-      if (saved.documentName) setDocumentName(saved.documentName)
-    }
-  }, [])
+    return saved.step !== 'complete' ? saved.step : 'welcome'
+  })
+  const [documentId, setDocumentId] = useState(() => {
+    const saved = getLocalOnboardingState()
+    return saved.documentId ?? ''
+  })
+  const [documentName, setDocumentName] = useState(() => {
+    const saved = getLocalOnboardingState()
+    return saved.documentName ?? ''
+  })
 
   const handleSkip = useCallback(async () => {
     await skipOnboarding()

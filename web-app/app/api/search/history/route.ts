@@ -5,12 +5,18 @@ import { RequestContext } from '@/lib/middleware/types'
 import { getSearchHistory, clearSearchHistory } from '@/db/repositories/search-history'
 
 async function getHistoryHandler(req: NextRequest, context: RequestContext): Promise<NextResponse> {
-  const history = await getSearchHistory(context.userId!, 10)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const history = await getSearchHistory(userId, 10)
   return NextResponse.json({ history })
 }
 
 async function deleteHistoryHandler(req: NextRequest, context: RequestContext): Promise<NextResponse> {
-  await clearSearchHistory(context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  await clearSearchHistory(userId)
   return new NextResponse(null, { status: 204 })
 }
 

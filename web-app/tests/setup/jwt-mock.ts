@@ -14,9 +14,11 @@ function base64url(buf: Buffer): string {
 function parsePayload(token: string): Record<string, unknown> | null {
   const parts = token.split('.')
   if (parts.length !== 3) return null
+  const payloadPart = parts[1]
+  if (!payloadPart) return null
   try {
     const decoded = Buffer.from(
-      parts[1].replace(/-/g, '+').replace(/_/g, '/'),
+      payloadPart.replace(/-/g, '+').replace(/_/g, '/'),
       'base64'
     ).toString('utf-8')
     return JSON.parse(decoded)
@@ -28,7 +30,9 @@ function parsePayload(token: string): Record<string, unknown> | null {
 function verifyHs256(token: string, secret: string): boolean {
   const parts = token.split('.')
   if (parts.length !== 3) return false
-  const [h, p, sigB64] = parts
+  const h = parts[0] ?? ''
+  const p = parts[1] ?? ''
+  const sigB64 = parts[2] ?? ''
   const expectedSig = base64url(createHmac('sha256', secret).update(`${h}.${p}`).digest())
   return expectedSig === sigB64
 }

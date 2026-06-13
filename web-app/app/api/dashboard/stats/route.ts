@@ -15,9 +15,12 @@ async function statsHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
   const [documentsResult, queriesResult, aiMetricsResult] = await Promise.allSettled([
-    documentsRepository.findByUser(context.userId!),
-    queriesRepository.findByUser(context.userId!, 1000),
+    documentsRepository.findByUser(userId),
+    queriesRepository.findByUser(userId, 1000),
     backendClient.getMetrics(24),
   ])
 

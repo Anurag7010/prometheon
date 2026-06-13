@@ -31,7 +31,7 @@ async function refreshHandler(_req: NextRequest, context: RequestContext): Promi
     )
   }
 
-  const user = await findById(payload.sub!)
+  const user = await findById(payload.sub ?? '')
   if (!user) {
     return NextResponse.json(
       {

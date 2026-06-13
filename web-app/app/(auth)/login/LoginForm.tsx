@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Input } from "@/components/ui/Input";
 import { setAccessToken } from "@/hooks/useAuth";
 import { MagneticButton, WordsPullUp } from "@/components/ui/motion";
-import { EASE_CINEMATIC, DURATION } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { HlsVideo } from "@/components/auth/HlsVideo";
 
@@ -169,10 +168,11 @@ export function LoginForm() {
     <div className="flex min-h-screen bg-ember-black">
       {/* Left — image panel (desktop only) */}
       <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden">
-        <img
+        <Image
           src="/prometheon-feature-card.jpeg"
           alt=""
-          className="absolute inset-0 w-full h-full object-cover"
+          fill
+          className="object-cover"
         />
         {/* Right-edge blend into form panel */}
         <div

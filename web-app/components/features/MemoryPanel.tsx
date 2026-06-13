@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, Button, Badge, EmptyState, Spinner } from '@/components/ui'
 import type { Memory } from '@/types'
 
@@ -10,11 +10,7 @@ export default function MemoryPanel() {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadMemories()
-  }, [])
-
-  async function loadMemories() {
+  const loadMemories = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -30,7 +26,15 @@ export default function MemoryPanel() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // Wrap in async IIFE so setState calls happen inside an async callback,
+    // not synchronously in the effect body
+    void (async () => {
+      await loadMemories()
+    })()
+  }, [loadMemories])
 
   async function deleteMemory(id: string) {
     setDeleting(id)

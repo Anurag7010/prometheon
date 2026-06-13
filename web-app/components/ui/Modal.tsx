@@ -90,13 +90,13 @@ export function Modal({
         // Shift+Tab: if on first element, wrap to last
         if (document.activeElement === first) {
           e.preventDefault();
-          last.focus();
+          last?.focus();
         }
       } else {
         // Tab: if on last element, wrap to first
         if (document.activeElement === last) {
           e.preventDefault();
-          first.focus();
+          first?.focus();
         }
       }
     }

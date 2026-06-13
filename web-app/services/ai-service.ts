@@ -1,4 +1,4 @@
-import { BaseService, ServiceResponse } from './base-service'
+import { BaseService, ServiceResponse, ServiceError } from './base-service'
 import type {
   AskResponse,
   IngestResponse,
@@ -7,7 +7,6 @@ import type {
   DocumentId,
   Message,
 } from '../types'
-import { toDocumentId } from '../types'
 import { isAskResponse, isIngestResponse } from '../lib/type-guards'
 import { parseSSEStream, type SSEEvent } from '../lib/sse-parser'
 
@@ -28,6 +27,15 @@ export class AIService extends BaseService {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     })
+  }
+
+  private static parseError(message: string, originalError: unknown): ServiceError {
+    const err = new ServiceError()
+    err.code = 'PARSE_ERROR'
+    err.message = message
+    err.retryable = false
+    err.originalError = originalError
+    return err
   }
 
   // POST /api/ask
@@ -54,13 +62,7 @@ export class AIService extends BaseService {
     if (!isAskResponse(response.data)) {
       return {
         data: null,
-        error: {
-          name: 'ServiceError',
-          code: 'PARSE_ERROR',
-          message: 'Unexpected response shape from /api/ask',
-          retryable: false,
-          originalError: response.data,
-        } as any,
+        error: AIService.parseError('Unexpected response shape from /api/ask', response.data),
         status: response.status,
         latencyMs: response.latencyMs,
       }
@@ -143,17 +145,11 @@ export class AIService extends BaseService {
     if (response.error) return response as ServiceResponse<IngestResponse>
 
     // Route returns { data: IngestResponse, requestId } — unwrap
-    const inner = (response.data as any)?.data
+    const inner = (response.data as { data?: unknown })?.data
     if (!isIngestResponse(inner)) {
       return {
         data: null,
-        error: {
-          name: 'ServiceError',
-          code: 'PARSE_ERROR',
-          message: 'Unexpected response shape from /api/documents',
-          retryable: false,
-          originalError: response.data,
-        } as any,
+        error: AIService.parseError('Unexpected response shape from /api/documents', response.data),
         status: response.status,
         latencyMs: response.latencyMs,
       }
@@ -184,7 +180,7 @@ export class AIService extends BaseService {
 
     if (response.error) return response as ServiceResponse<RetrieveResponse>
 
-    const inner = (response.data as any)?.data as RetrieveResponse
+    const inner = (response.data as { data?: RetrieveResponse })?.data as RetrieveResponse
     return { ...response, data: inner }
   }
 
@@ -200,7 +196,7 @@ export class AIService extends BaseService {
 
     if (response.error) return response as ServiceResponse<DocumentSummary[]>
 
-    const inner = (response.data as any)?.data as DocumentSummary[]
+    const inner = (response.data as { data?: DocumentSummary[] })?.data as DocumentSummary[]
     return { ...response, data: inner }
   }
 

@@ -12,7 +12,8 @@ interface ErrorContext {
 
 export function logError(error: Error, context?: ErrorContext): void {
   if (process.env.NODE_ENV === 'production') {
-    // TODO Day 17+: send to Sentry/Datadog with context
+    // FUTURE: Integrate with Sentry/Datadog for production error tracking.
+    // Phase 5 deployment work — requires SENTRY_DSN or DD_API_KEY env vars.
     return
   }
 
@@ -26,7 +27,8 @@ export function logError(error: Error, context?: ErrorContext): void {
 
 export function logWarning(message: string, context?: ErrorContext): void {
   if (process.env.NODE_ENV === 'production') {
-    // TODO Day 17+: send to monitoring service
+    // FUTURE: Integrate with monitoring service for production warning tracking.
+    // Phase 5 deployment work — requires monitoring env vars.
     return
   }
 

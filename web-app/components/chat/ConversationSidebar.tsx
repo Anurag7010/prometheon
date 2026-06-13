@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/cn'
-import { formatDistanceToNow, isToday, isYesterday, isThisWeek } from 'date-fns'
+import { isToday, isYesterday, isThisWeek } from 'date-fns'
 import { getAccessToken } from '@/hooks'
 
 interface ConversationItem {
@@ -27,11 +27,7 @@ export function ConversationSidebar({
   const [conversations, setConversations] = useState<ConversationItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadConversations()
-  }, [])
-
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     try {
       const token = getAccessToken()
       const res = await fetch('/api/conversations', {
@@ -46,7 +42,11 @@ export function ConversationSidebar({
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadConversations()
+  }, [loadConversations])
 
   const groups = groupByDate(conversations)
 

@@ -18,7 +18,10 @@ async function listHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
-  const docs = await documentsRepository.findByUser(context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const docs = await documentsRepository.findByUser(userId)
   return NextResponse.json({ data: docs, requestId: context.requestId })
 }
 
@@ -59,10 +62,13 @@ async function createHandler(
     )
   }
 
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
   // Create DB record before calling Python — gives us a documentId to return
   // and ensures we have an audit record even if ingestion fails
   const document = await documentsRepository.create({
-    userId: context.userId!,
+    userId,
     filename: file.name,
   })
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { cn } from "@/lib/cn";
 import type { Toast as ToastType } from "@/hooks/useToast";
 

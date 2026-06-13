@@ -14,7 +14,10 @@ async function deleteHandler(
   req: NextRequest,
   context: RequestContext & { params: { id: string } }
 ): Promise<NextResponse> {
-  await backendClient.deleteMemory(context.params.id, context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  await backendClient.deleteMemory(context.params.id, userId)
   return new NextResponse(null, { status: 204 })
 }
 
@@ -28,5 +31,5 @@ const wrappedDelete = compose(
 
 export async function DELETE(req: NextRequest, { params }: RouteProps) {
   const resolvedParams = await params
-  return wrappedDelete(req, { requestId: '', startTime: 0, params: resolvedParams } as any)
+  return wrappedDelete(req, { requestId: '', startTime: 0, params: resolvedParams } as unknown as RequestContext)
 }

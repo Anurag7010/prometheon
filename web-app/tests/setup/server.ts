@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { RequestInit } from 'next/dist/server/web/spec-extension/request'
 import { createHmac } from 'crypto'
-import { RequestContext } from '../../lib/middleware/types'
 
 // Fixed test user ID — used when no specific userId needed
 export const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
@@ -54,7 +53,7 @@ export async function generateTestToken(
  * Returns parsed response for assertions.
  */
 export async function makeRequest(
-  handler: (req: NextRequest, ctx?: any) => Promise<NextResponse>,
+  handler: (req: NextRequest, ctx?: Record<string, unknown>) => Promise<NextResponse>,
   options: RequestOptions = {}
 ): Promise<TestResponse> {
   const {
@@ -106,7 +105,7 @@ export async function makeRequest(
  * Sets no Content-Type so the browser boundary is preserved.
  */
 export async function makeFormDataRequest(
-  handler: (req: NextRequest, ctx?: any) => Promise<NextResponse>,
+  handler: (req: NextRequest, ctx?: Record<string, unknown>) => Promise<NextResponse>,
   formData: FormData,
   options: Omit<RequestOptions, 'body'> = {},
   userId = TEST_USER_ID
@@ -137,7 +136,7 @@ export async function makeFormDataRequest(
  * Tests protected routes without a real auth system.
  */
 export async function makeAuthRequest(
-  handler: (req: NextRequest, ctx?: any) => Promise<NextResponse>,
+  handler: (req: NextRequest, ctx?: Record<string, unknown>) => Promise<NextResponse>,
   options: RequestOptions = {},
   userId = TEST_USER_ID
 ): Promise<TestResponse> {

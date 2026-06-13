@@ -13,7 +13,10 @@ async function handler(
   req: NextRequest,
   context: RequestContext,
 ): Promise<NextResponse> {
-  await markOnboardingComplete(context.userId!)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  await markOnboardingComplete(userId)
   return NextResponse.json({ ok: true })
 }
 

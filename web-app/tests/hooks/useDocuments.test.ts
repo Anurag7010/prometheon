@@ -23,7 +23,7 @@ function fetchSuccess(data: unknown) {
   } as Response)
 }
 
-function fetchError(status = 500) {
+function _fetchError(status = 500) {
   return Promise.resolve({
     ok: false,
     status,

@@ -48,7 +48,7 @@ const navItems = [
 ]
 
 function UserAvatar({ email }: { email: string }) {
-  const initials = email.split('@')[0].slice(0, 2).toUpperCase()
+  const initials = (email.split('@')[0] ?? email).slice(0, 2).toUpperCase()
   return (
     <div
       className="size-7 rounded-full flex items-center justify-center text-xs font-semibold text-ember bg-ember/20 shrink-0"
@@ -63,7 +63,10 @@ export function MobileSidebar({ email }: { email: string }) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
-  useEffect(() => { setOpen(false) }, [pathname])
+  useEffect(() => {
+    const t = setTimeout(() => setOpen(false), 0)
+    return () => clearTimeout(t)
+  }, [pathname])
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''

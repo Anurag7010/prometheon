@@ -36,6 +36,18 @@ export function useSearch() {
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/search/history', {
+        headers: { 'Authorization': `Bearer ${getAccessToken()}` },
+      })
+      if (res.ok) {
+        const data = await res.json() as { history: SearchHistoryItem[] }
+        setHistory(data.history ?? [])
+      }
+    } catch {/* non-fatal */}
+  }, [])
+
   const search = useCallback(async (
     query: string,
     options: { topK?: number; strategy?: string; documentId?: string } = {}
@@ -72,19 +84,7 @@ export function useSearch() {
       if ((err as Error).name === 'AbortError') return
       setState({ status: 'error', error: 'Search failed' })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadHistory = useCallback(async () => {
-    try {
-      const res = await fetch('/api/search/history', {
-        headers: { 'Authorization': `Bearer ${getAccessToken()}` },
-      })
-      if (res.ok) {
-        const data = await res.json() as { history: SearchHistoryItem[] }
-        setHistory(data.history ?? [])
-      }
-    } catch {/* non-fatal */}
-  }, [])
+  }, [loadHistory])
 
   const clearHistory = useCallback(async () => {
     await fetch('/api/search/history', {

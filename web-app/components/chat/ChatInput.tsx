@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, KeyboardEvent } from 'react'
 import { cn } from '@/lib/cn'
-import { Button } from '@/components/ui'
 
 interface ChatInputProps {
   value: string

@@ -10,7 +10,7 @@
 // which changes when we apply the theme class. We still avoid the icon mismatch by
 // showing nothing until useEffect runs.
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 function SunIcon() {
   return (
@@ -54,44 +54,67 @@ function MoonIcon() {
 
 type Theme = "light" | "dark";
 
-export default function ThemeToggle() {
-  // mounted prevents rendering theme-specific content during SSR.
-  // Before mount: we don't know the theme → render nothing (avoids hydration mismatch).
-  // After mount: localStorage is accessible → render correct icon.
-  const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState<Theme>("light");
+// Callbacks subscribed to theme changes (storage events + manual mutations)
+const themeListeners = new Set<() => void>();
+let _cachedTheme: Theme | null = null;
 
-  useEffect(() => {
-    // Read saved preference — fall back to system preference, then light
+function getThemeSnapshot(): Theme | null {
+  return _cachedTheme;
+}
+
+function getThemeServerSnapshot(): null {
+  // Server-side: always return null so we render the placeholder
+  return null;
+}
+
+function subscribeToTheme(callback: () => void): () => void {
+  themeListeners.add(callback);
+  if (_cachedTheme === null) {
+    // Initialize once when the first subscriber attaches
     const saved = localStorage.getItem("theme") as Theme | null;
     const systemPrefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)",
     ).matches;
-    const resolved = saved ?? (systemPrefersDark ? "dark" : "light");
-
-    setTheme(resolved);
-    applyTheme(resolved);
-    setMounted(true);
-  }, []);
-
-  function applyTheme(next: Theme) {
-    const root = document.documentElement;
-    if (next === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    localStorage.setItem("theme", next);
+    _cachedTheme = saved ?? (systemPrefersDark ? "dark" : "light");
+    applyTheme(_cachedTheme);
   }
+  return () => {
+    themeListeners.delete(callback);
+  };
+}
+
+function notifyThemeListeners() {
+  themeListeners.forEach((cb) => cb());
+}
+
+function applyTheme(next: Theme) {
+  const root = document.documentElement;
+  if (next === "dark") {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+  localStorage.setItem("theme", next);
+  _cachedTheme = next;
+}
+
+export default function ThemeToggle() {
+  // useSyncExternalStore: subscribes to theme without setState-in-effect
+  // Server snapshot returns null → renders placeholder (no hydration mismatch)
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    getThemeSnapshot,
+    getThemeServerSnapshot,
+  );
 
   function toggle() {
     const next: Theme = theme === "light" ? "dark" : "light";
-    setTheme(next);
     applyTheme(next);
+    notifyThemeListeners();
   }
 
   // Render nothing until mounted — prevents hydration mismatch on the icon
-  if (!mounted) {
+  if (theme === null) {
     return (
       <button
         className="h-9 w-9 rounded-md border border-border flex items-center justify-center"

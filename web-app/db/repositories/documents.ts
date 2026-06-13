@@ -40,6 +40,7 @@ export async function create(data: NewDocument): Promise<Document> {
     // Without this we would need a second SELECT to get the created_at and id
     .returning()
 
+  if (!created) throw new Error('create: insert returned no row')
   return created
 }
 

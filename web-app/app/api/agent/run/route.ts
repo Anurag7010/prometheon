@@ -11,9 +11,10 @@ import {
 import { RequestContext } from '@/lib/middleware/types'
 import { queriesRepository } from '@/db'
 import { backendClient } from '@/lib/backend-client'
+import { MAX_QUERY_LENGTH } from '@/lib/constants'
 
 const AgentRunSchema = z.object({
-  query: z.string().min(1).max(2000),
+  query: z.string().min(1).max(MAX_QUERY_LENGTH),
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string(),

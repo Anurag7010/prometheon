@@ -119,7 +119,7 @@ export async function withRetry<T>(
       const capped = Math.min(maxDelayMs, exponential)
       const jittered = Math.random() * capped
 
-      console.log(
+      console.warn(
         `[withRetry] Attempt ${attempt + 1}/${maxAttempts} failed: ${(err as Error).message}. ` +
         `Retrying in ${Math.round(jittered)}ms...`
       )
@@ -297,7 +297,7 @@ export async function resilientCall<T>(
 
       // AbortError means our internal controller was triggered.
       // Determine whether it was the timeout or the external signal.
-      if ((err as any)?.name === 'AbortError') {
+      if ((err as { name?: string })?.name === 'AbortError') {
         if (externalSignal?.aborted) {
           // External signal caused the abort — treat as cancellation
           throw new CancellationError('Cancelled by caller')
@@ -340,7 +340,7 @@ export async function resilientCall<T>(
       const capped = Math.min(maxDelayMs, exponential)
       const jittered = Math.random() * capped
 
-      console.log(
+      console.warn(
         `[resilientCall] Attempt ${attempt + 1}/${maxAttempts} failed: ` +
         `${(lastError as Error).message}. Retrying in ${Math.round(jittered)}ms...`
       )
@@ -377,7 +377,7 @@ function defaultIsRetryable(error: unknown): boolean {
   if (error instanceof TimeoutError) return true
   if (error instanceof TypeError) return true // network-level failure
 
-  const status = (error as any)?.status
+  const status = (error as { status?: number })?.status
   if (typeof status === 'number') {
     return status === 429 || status >= 500
   }

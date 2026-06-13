@@ -6,7 +6,8 @@ import { queriesRepository, documentsRepository } from '@/db'
 import { findConversationsByUser } from '@/db/repositories/conversations'
 
 async function exportHandler(req: NextRequest, context: RequestContext): Promise<NextResponse> {
-  const userId = context.userId!
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
 
   const [userQueries, userConversations, userDocuments] = await Promise.all([
     queriesRepository.findByUser(userId, 10000),

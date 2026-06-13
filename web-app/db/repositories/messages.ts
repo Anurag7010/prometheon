@@ -10,6 +10,7 @@ import { messages, type Message, type NewMessage } from '../schema'
 /** Insert a single message and return the inserted row. */
 export async function addMessage(data: NewMessage): Promise<Message> {
   const [row] = await db.insert(messages).values(data).returning()
+  if (!row) throw new Error('addMessage: insert returned no row')
   return row
 }
 

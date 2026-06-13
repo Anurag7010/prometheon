@@ -1,5 +1,4 @@
 import { cn } from "@/lib/cn";
-import { SkeletonCard } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 
 interface Column<T> {

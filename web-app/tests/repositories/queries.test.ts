@@ -88,8 +88,8 @@ describe('queriesRepository.findByUser()', () => {
 
     const results = await queriesRepo.findByUser(user.id)
 
-    expect(results[0].id).toBe(q2.id)
-    expect(results[1].id).toBe(q1.id)
+    expect(results[0]?.id).toBe(q2.id)
+    expect(results[1]?.id).toBe(q1.id)
   })
 
   it('respects custom limit parameter', async () => {

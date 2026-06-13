@@ -17,7 +17,10 @@ async function listHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
-  const conversations = await findConversationsByUser(context.userId!, 20)
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const conversations = await findConversationsByUser(userId, 20)
   return NextResponse.json({ conversations })
 }
 
@@ -26,7 +29,10 @@ async function createHandler(
   req: NextRequest,
   context: RequestContext
 ): Promise<NextResponse> {
-  const conversation = await createConversation({ userId: context.userId! })
+  const { userId } = context
+  if (!userId) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  const conversation = await createConversation({ userId })
   return NextResponse.json(conversation, { status: 201 })
 }
 
