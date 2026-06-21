@@ -247,7 +247,7 @@ export default function AgentInterface() {
                             key={i}
                             className="w-1 h-1 rounded-full bg-ember/60"
                             animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
+                            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2, ease: [0.45, 0, 0.55, 1] }}
                           />
                         ))}
                       </div>

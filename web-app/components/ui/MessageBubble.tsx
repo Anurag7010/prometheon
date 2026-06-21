@@ -106,7 +106,7 @@ export function MessageBubble({
                 <motion.span
                   className="inline-block w-0.5 h-[1.1em] bg-ember ml-0.5 align-middle rounded-full"
                   animate={{ scaleY: [1, 0.3, 1] }}
-                  transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}
+                  transition={{ duration: 0.9, repeat: Infinity, ease: [0.45, 0, 0.55, 1] }}
                 />
               )}
             </>
