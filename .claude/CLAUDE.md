@@ -143,7 +143,14 @@ Three interconnected systems:
   - schema.ts: onboardingCompleted timestamp column on users
   - DocumentSummary: added chunkCount to Pick
   - All tests passing (3 pre-existing infra failures unchanged), production build clean
-- Next: Day 16 — Chat UI + Agent UI Polish
+- Day 16 (Pre-deploy): Tiered API Access — COMPLETE
+  - Owner (rautanurag9@gmail.com): OpenAI GPT-4o + text-embedding-3-small
+  - Free tier (everyone else): Groq llama-3.3-70b-versatile + HuggingFace all-MiniLM-L6-v2 (local)
+  - Tier resolved per-request from X-User-Email header (forwarded from JWT session)
+  - Dual ChromaDB collections: "langchain" (OpenAI embeddings), "langchain_hf" (HuggingFace)
+  - Ingest writes to both collections so all tiers can retrieve documents
+  - Evals always use GPT-4o as judge regardless of tier (model_override path in llm_client)
+- Next: Day 17 — Chat UI + Agent UI Polish
 
 ## System Capabilities (End of Phase 4)
 
