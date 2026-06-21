@@ -62,6 +62,10 @@ class Config:
     # ── Web search ────────────────────────────────────────────────────────────
     TAVILY_API_KEY: str
 
+    # ── Tiered access ─────────────────────────────────────────────────────────
+    GROQ_API_KEY: str
+    OWNER_EMAIL: str
+
     @classmethod
     def load(cls) -> "Config":
         """Load config from environment. Raises EnvironmentError if OPENAI_API_KEY is missing."""
@@ -80,6 +84,8 @@ class Config:
             FAST_MODEL=_optional("FAST_MODEL", "gpt-4o-mini"),
             RELEVANCE_THRESHOLD=float(_optional("RELEVANCE_THRESHOLD", "0.40")),
             TAVILY_API_KEY=_optional("TAVILY_API_KEY", ""),
+            GROQ_API_KEY=_optional("GROQ_API_KEY", ""),
+            OWNER_EMAIL=_optional("OWNER_EMAIL", "rautanurag9@gmail.com"),
         )
 
 
