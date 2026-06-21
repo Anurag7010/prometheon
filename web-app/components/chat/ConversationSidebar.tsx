@@ -108,7 +108,10 @@ export function ConversationSidebar({
                         onChange={e => setRenameValue(e.target.value)}
                         onBlur={() => commitRename(convo.id)}
                         onKeyDown={e => {
-                          if (e.key === 'Enter') commitRename(convo.id)
+                          if (e.key === 'Enter') {
+                            e.preventDefault()  // prevents blur from firing after Enter
+                            commitRename(convo.id)
+                          }
                           if (e.key === 'Escape') setRenamingId(null)
                         }}
                         className="flex-1 w-full bg-transparent text-sm text-parchment outline-none border-b border-ember/60 pb-0.5 px-3 py-2"

@@ -127,8 +127,8 @@ export function ChatInterface({ documentId: _documentId, documentName }: ChatInt
     setQuery('')
     const convId = await ensureConversation()
     const isFirstMessage = messages.length === 0
-    await askStream(q)
-    if (isFirstMessage && convId) {
+    const succeeded = await askStream(q)
+    if (isFirstMessage && convId && succeeded) {
       autoTitle(convId, q)
     }
   }
@@ -147,8 +147,12 @@ export function ChatInterface({ documentId: _documentId, documentName }: ChatInt
   async function handleSuggestionClick(text: string) {
     if (isStreaming) return
     setQuery(text)
-    await ensureConversation()
-    await askStream(text)
+    const convId = await ensureConversation()
+    const isFirstMessage = messages.length === 0
+    const succeeded = await askStream(text)
+    if (isFirstMessage && convId && succeeded) {
+      autoTitle(convId, text)
+    }
   }
 
   const lastIndex = messages.length - 1

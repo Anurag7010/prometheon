@@ -10,7 +10,7 @@ export function useAsk(): {
   state: AsyncState<AskResponse>
   messages: Message[]
   ask: (query: string) => Promise<void>
-  askStream: (query: string) => Promise<void>
+  askStream: (query: string) => Promise<boolean>
   clearHistory: () => void
   loadHistory: (msgs: Message[]) => void
   isStreaming: boolean
@@ -92,7 +92,7 @@ export function useAsk(): {
     })
   }, [messages, execute, abortCtrl])
 
-  const askStream = useCallback(async (query: string) => {
+  const askStream = useCallback(async (query: string): Promise<boolean> => {
     abortCtrl.abort()
     abortCtrl.reset()
     const currentSignal = abortCtrl.signal
@@ -113,6 +113,7 @@ export function useAsk(): {
 
     let sources: Source[] = []
     let streamError: string | null = null
+    let succeeded = false
 
     await execute(async () => {
       const generator = aiService.askStream(
@@ -178,8 +179,11 @@ export function useAsk(): {
         ]
       })
 
+      succeeded = true  // only set on the happy path
       return synthResponse
     })
+
+    return succeeded
   }, [messages, execute, reset, abortCtrl, scheduleFlush, flushTokens])
 
   const clearHistory = useCallback(() => {
