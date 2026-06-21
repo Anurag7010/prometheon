@@ -51,7 +51,7 @@ export function DocumentManager(): React.ReactElement {
   const router = useRouter()
   const { state: docState, refresh, deleteDocument } = useDocuments()
   const { upload } = useUpload()
-  const { signal, reset: resetSignal } = useAbortController()
+  const abortCtrl = useAbortController()
   const fileRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [queue, setQueue] = useState<QueuedFile[]>([])
@@ -84,10 +84,12 @@ export function DocumentManager(): React.ReactElement {
 
     for (const item of newQueue) {
       setQueue((q) => q.map((x) => x.id === item.id ? { ...x, status: 'uploading' } : x))
-      resetSignal()
-      await upload(item.file, signal)
+      abortCtrl.reset()
+      const uploadError = await upload(item.file, abortCtrl.signal)
       setQueue((q) => q.map((x) =>
-        x.id === item.id ? { ...x, status: 'done' } : x
+        x.id === item.id
+          ? { ...x, status: uploadError ? 'error' : 'done', error: uploadError ?? undefined }
+          : x
       ))
     }
   }

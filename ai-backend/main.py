@@ -28,7 +28,7 @@ def _divider(title: str) -> None:
 
 # ── Health check ──────────────────────────────────────────────────────────────
 
-def health_check() -> bool:
+async def health_check() -> bool:
     """
     Run pre-flight checks. Prints PASS/FAIL per check.
     Returns True only if ALL checks pass.
@@ -69,8 +69,7 @@ def health_check() -> bool:
     # 4. RAG interface importable + retrieve() doesn't crash on empty query
     try:
         from rag.rag_interface import retrieve
-        import asyncio as _asyncio
-        result = _asyncio.run(retrieve(""))
+        result = await retrieve("")
         # Empty query returns error list — that's fine; we just need no exception
         print("  [PASS] RAG interface importable and retrieve() callable")
     except Exception as exc:
@@ -90,7 +89,7 @@ async def run_smoke_test() -> None:
     from evals.test_cases import TEST_CASES
 
     # Step 1: Health check — abort if any check fails
-    if not health_check():
+    if not await health_check():
         print("\nAborting: fix failing health checks before proceeding.")
         sys.exit(1)
 
@@ -145,7 +144,7 @@ async def run_smoke_test() -> None:
 if __name__ == "__main__":
     import asyncio as _asyncio
     if "--health-check" in sys.argv:
-        passed = health_check()
+        passed = _asyncio.run(health_check())
         sys.exit(0 if passed else 1)
     else:
         _asyncio.run(run_smoke_test())

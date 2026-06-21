@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Card, Button, Badge, EmptyState, Spinner } from '@/components/ui'
+import { getAccessToken } from '@/hooks'
 import type { Memory } from '@/types'
 
 export default function MemoryPanel() {
@@ -14,7 +15,10 @@ export default function MemoryPanel() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/memories')
+      const token = getAccessToken()
+      const res = await fetch('/api/memories', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (res.ok) {
         const data = await res.json()
         setMemories(data.memories ?? [])
@@ -39,7 +43,11 @@ export default function MemoryPanel() {
   async function deleteMemory(id: string) {
     setDeleting(id)
     try {
-      const res = await fetch(`/api/memories/${id}`, { method: 'DELETE' })
+      const token = getAccessToken()
+      const res = await fetch(`/api/memories/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (res.ok || res.status === 204) {
         setMemories(prev => prev.filter(m => m.id !== id))
       }

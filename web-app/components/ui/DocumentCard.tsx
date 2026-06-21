@@ -22,8 +22,8 @@ const statusConfig: Record<DocumentStatus, { label: string; className: string; d
   },
 }
 
-function formatRelativeTime(date: Date): string {
-  const diffMs = Date.now() - date.getTime()
+function formatRelativeTime(date: Date | string): string {
+  const diffMs = Date.now() - new Date(date).getTime()
   const diffMins = Math.floor(diffMs / 60000)
   if (diffMins < 1) return 'just now'
   if (diffMins < 60) return `${diffMins}m ago`

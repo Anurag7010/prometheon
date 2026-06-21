@@ -26,7 +26,10 @@ class WebSearchTool(BaseTool):
         Search the web using Tavily API.
         Falls back gracefully if TAVILY_API_KEY is not configured.
         """
-        api_key = config.TAVILY_API_KEY
+        import os
+        # Read at call time so a server restart after adding the key works immediately.
+        # config.TAVILY_API_KEY is frozen at startup and won't reflect .env edits.
+        api_key = os.getenv("TAVILY_API_KEY") or config.TAVILY_API_KEY
         if not api_key:
             return [
                 {

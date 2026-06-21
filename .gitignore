@@ -141,7 +141,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
-*.swp
+*.swp q
 *~
 
 # Node modules (if using Node.js)
@@ -159,4 +159,4 @@ external/
 # Next.js
 .next/
 out/
-
+chroma_db/

@@ -94,7 +94,7 @@ def complete(
         latency_ms = (time.perf_counter() - t0) * 1000
         usage = response.usage
         cost = _estimate_cost(resolved_model, usage.prompt_tokens, usage.completion_tokens)
-        text = response.choices[0].message.content.strip()
+        text = (response.choices[0].message.content or "").strip()
 
         log_llm_call(
             trace_id=resolved_tid,

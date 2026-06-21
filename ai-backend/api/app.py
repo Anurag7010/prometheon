@@ -8,7 +8,9 @@ Uvicorn hosts this object; main.py stays as the script entry point for health ch
 and smoke tests.
 """
 
+import os as _os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
@@ -21,10 +23,20 @@ from observability.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # noqa: ARG001
+    """Manage application startup and shutdown."""
+    logger.info("api_startup", extra={"status": "started", "port": int(_os.getenv("API_PORT", "8001"))})
+    yield
+    logger.info("api_shutdown", extra={"status": "shutting_down"})
+
+
 app = FastAPI(
     title="AI Backend API",
     description="RAG-powered question answering API for the AI product",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -138,22 +150,6 @@ async def validation_exception_handler(
         status_code=422,
         content={**body.model_dump(), "fields": field_errors},
     )
-
-
-# ── Lifecycle events ──────────────────────────────────────────────────────────
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    """Log startup confirmation with port info."""
-    import os as _os
-    logger.info("api_startup", extra={"status": "started", "port": int(_os.getenv("API_PORT", "8001"))})
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    """Log clean shutdown."""
-    logger.info("api_shutdown", extra={"status": "shutting_down"})
 
 
 # ── Router registration ───────────────────────────────────────────────────────

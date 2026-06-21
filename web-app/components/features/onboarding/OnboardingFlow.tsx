@@ -8,6 +8,7 @@ import {
   completeOnboarding,
   skipOnboarding,
 } from '@/lib/onboarding'
+import { getAccessToken } from '@/hooks/useAuth'
 import { WelcomeStep } from './WelcomeStep'
 import { UploadStep } from './UploadStep'
 import { AskStep } from './AskStep'
@@ -31,12 +32,12 @@ export function OnboardingFlow({ onDone }: OnboardingFlowProps) {
   })
 
   const handleSkip = useCallback(async () => {
-    await skipOnboarding()
+    await skipOnboarding(getAccessToken())
     onDone()
   }, [onDone])
 
   const handleComplete = useCallback(async () => {
-    await completeOnboarding()
+    await completeOnboarding(getAccessToken())
     onDone()
   }, [onDone])
 

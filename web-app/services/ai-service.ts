@@ -1,4 +1,5 @@
 import { BaseService, ServiceResponse, ServiceError } from './base-service'
+import { getAccessToken } from '@/hooks/useAuth'
 import type {
   AskResponse,
   IngestResponse,
@@ -27,6 +28,11 @@ export class AIService extends BaseService {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     })
+  }
+
+  protected override getAuthHeaders(): Record<string, string> {
+    const token = getAccessToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
   private static parseError(message: string, originalError: unknown): ServiceError {
@@ -86,6 +92,7 @@ export class AIService extends BaseService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
+          ...this.getAuthHeaders(),
         },
         body: JSON.stringify({
           query,

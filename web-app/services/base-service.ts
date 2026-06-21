@@ -148,10 +148,13 @@ export class BaseService {
   // Structured logging — never logs body or auth headers
   // ============================================================
   private log(entry: RequestLog): void {
-    if (entry.errorCode) {
-      console.error('[BaseService]', JSON.stringify(entry))
-    } else {
+    if (!entry.errorCode) {
       console.warn('[BaseService]', JSON.stringify(entry))
+    } else if (entry.errorCode === 'CANCELLED' || entry.errorCode === 'TIMEOUT') {
+      // CANCELLED = component unmounted or user navigated away; TIMEOUT = transient — both retryable/expected
+      console.warn('[BaseService]', JSON.stringify(entry))
+    } else {
+      console.error('[BaseService]', JSON.stringify(entry))
     }
   }
 
@@ -202,6 +205,15 @@ export class BaseService {
   }
 
   // ============================================================
+  // PROTECTED — getAuthHeaders
+  // Override in subclasses to inject dynamic auth headers per-request.
+  // Called on every fetch, so the token is always current.
+  // ============================================================
+  protected getAuthHeaders(): Record<string, string> {
+    return {}
+  }
+
+  // ============================================================
   // PRIVATE — _executeRequest
   // Separated from request() so deduplication logic stays clean
   // ============================================================
@@ -221,10 +233,11 @@ export class BaseService {
     try {
       const data = await resilientCall(
         async (abortSignal) => {
-          // Merge default headers with per-request headers
-          // Per-request headers win on conflict
+          // Merge default headers, dynamic auth headers, and per-request headers.
+          // Per-request headers win on conflict; auth headers override defaults.
           const mergedHeaders: Record<string, string> = {
             ...this.defaultHeaders,
+            ...this.getAuthHeaders(),
             ...headers,
           }
 
@@ -255,6 +268,11 @@ export class BaseService {
           if (!response.ok) {
             // Throw a shaped object so normalizeError can extract the status
             throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
+          }
+
+          // 204 No Content (and 205) have no body — return null without parsing
+          if (response.status === 204 || response.status === 205) {
+            return null as T
           }
 
           // Parse JSON — throws SyntaxError if body is malformed

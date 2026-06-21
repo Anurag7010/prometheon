@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/cn'
 import { INGESTION_POLL_INTERVAL_MS } from '@/lib/constants'
+import { getAccessToken } from '@/hooks'
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'ready' | 'error'
 
@@ -34,7 +35,12 @@ export function UploadStep({ onComplete, onSkip, onBack }: UploadStepProps) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await fetch('/api/documents', { method: 'POST', body: formData })
+      const token = getAccessToken()
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (!res.ok) throw new Error('Upload failed')
 
       const { id } = await res.json()
@@ -49,7 +55,9 @@ export function UploadStep({ onComplete, onSkip, onBack }: UploadStepProps) {
           setError('Processing timed out. Try again.')
           return
         }
-        const r = await fetch(`/api/documents/${id}`)
+        const r = await fetch(`/api/documents/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
         if (r.ok) {
           const doc = await r.json()
           if (doc.status === 'ingested') {

@@ -324,6 +324,7 @@ class BackendClient {
       formData,
       traceId,
       userId,
+      timeoutMs: 300_000, // PDF ingestion can be slow on first run (model weight downloads)
     })
     return toIngestResult(raw)
   }

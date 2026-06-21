@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Sidebar } from '@/components/nav/Sidebar'
 import { MobileSidebar } from '@/components/nav/MobileSidebar'
@@ -8,6 +8,7 @@ import { ToastContainerWrapper } from '@/components/ui/ToastContainerWrapper'
 import { OnboardingFlow } from '@/components/features/onboarding/OnboardingFlow'
 import { PageTransition } from '@/components/layout/PageTransition'
 import { getLocalOnboardingState, shouldShowOnboarding } from '@/lib/onboarding'
+import { useAuth, getAccessToken } from '@/hooks/useAuth'
 
 interface AppShellProps {
   email: string
@@ -15,10 +16,38 @@ interface AppShellProps {
 }
 
 export function AppShell({ email, children }: AppShellProps) {
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    const state = getLocalOnboardingState()
-    return shouldShowOnboarding(state, false)
-  })
+  // Restores _accessToken from the refresh cookie on mount.
+  // isLoading is true until the first token refresh resolves.
+  const { isLoading: authLoading } = useAuth()
+
+  // Start false so SSR and initial hydration match — localStorage is client-only.
+  // After mount (and after auth is ready), read real state and show onboarding if needed.
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    // Wait for auth to restore the token before checking onboarding state,
+    // so the server call includes a valid Bearer header.
+    if (authLoading) return
+
+    const localState = getLocalOnboardingState()
+    // Fast path: localStorage says complete — no need to hit the server
+    if (localState.step === 'complete') {
+      setShowOnboarding(false)
+      return
+    }
+    // Verify server state — catches the case where localStorage was cleared
+    const token = getAccessToken()
+    fetch('/api/onboarding/status', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { completed: boolean } | null) => {
+        setShowOnboarding(shouldShowOnboarding(localState, data?.completed ?? false))
+      })
+      .catch(() => {
+        setShowOnboarding(shouldShowOnboarding(localState, false))
+      })
+  }, [authLoading])
 
   return (
     <div className="flex h-screen overflow-hidden bg-ember-black">

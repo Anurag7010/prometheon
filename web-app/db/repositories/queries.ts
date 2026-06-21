@@ -83,7 +83,7 @@ export async function updateAnswer(
     .update(queries)
     .set({
       answerText: answer,
-      latencyMs,
+      latencyMs: Math.round(latencyMs),
       // jsonb column accepts any serializable object
       retrievalMetadata,
     })

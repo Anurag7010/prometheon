@@ -33,16 +33,23 @@ export function setLocalOnboardingState(state: Partial<OnboardingState>): void {
   localStorage.setItem(KEY, JSON.stringify({ ...current, ...state }))
 }
 
+function _postComplete(token: string | null): void {
+  fetch('/api/onboarding/complete', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }).catch(() => null)
+}
+
 /** Mark onboarding as complete locally and persist to server. */
-export async function completeOnboarding(): Promise<void> {
+export async function completeOnboarding(token?: string | null): Promise<void> {
   setLocalOnboardingState({ step: 'complete' })
-  await fetch('/api/onboarding/complete', { method: 'POST' }).catch(() => null)
+  _postComplete(token ?? null)
 }
 
 /** Skip onboarding locally and persist to server. */
-export async function skipOnboarding(): Promise<void> {
+export async function skipOnboarding(token?: string | null): Promise<void> {
   setLocalOnboardingState({ step: 'complete', skipped: true })
-  await fetch('/api/onboarding/complete', { method: 'POST' }).catch(() => null)
+  _postComplete(token ?? null)
 }
 
 /** Returns true if onboarding should be shown. */

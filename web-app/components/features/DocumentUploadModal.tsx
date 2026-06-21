@@ -21,7 +21,7 @@ export function DocumentUploadModal({
   onSuccess,
 }: DocumentUploadModalProps) {
   const { state, upload, reset } = useUpload();
-  const { signal, abort, reset: resetSignal } = useAbortController();
+  const abortCtrl = useAbortController();
   const { toast } = useToastContext();
 
   // Close modal and show success toast after successful upload
@@ -40,12 +40,12 @@ export function DocumentUploadModal({
   }, [state.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleFile(file: File) {
-    resetSignal();
-    upload(file, signal);
+    abortCtrl.reset();
+    upload(file, abortCtrl.signal);
   }
 
   function handleCancel() {
-    abort();
+    abortCtrl.abort();
     reset();
     onClose();
   }

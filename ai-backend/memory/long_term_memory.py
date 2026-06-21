@@ -85,7 +85,7 @@ class LongTermMemoryStore:
                 include=["documents", "metadatas", "distances"],
             )
         )
-        if not results["ids"][0]:
+        if not results.get("ids") or not results["ids"][0]:
             return []
         memories = []
         update_ids = []
@@ -163,13 +163,13 @@ class LongTermMemoryStore:
                     include=["distances"],
                 )
             )
-            if results["distances"][0]:
+            if results.get("distances") and results["distances"][0]:
                 similarity = 1 - results["distances"][0][0]
                 return similarity >= self.SIMILARITY_THRESHOLD
         except Exception as exc:
             log_pipeline_event(
                 event="memory_duplicate_check_error",
-                trace_id=trace_id,
+                trace_id=None,
                 metadata={"error": str(exc)},
             )
             return False

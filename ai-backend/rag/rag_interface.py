@@ -343,7 +343,7 @@ def _generate_answer(query: str, docs: list, history: list | None, deps: dict) -
                 messages.append(AIMessage(content=turn["content"]))
     messages.append(deps["HumanMessage"](content=message_content))
     llm = deps["ChatOpenAI"](model=config.MODEL_NAME, temperature=config.TEMPERATURE)
-    return llm.invoke(messages).content
+    return llm.invoke(messages).content or ""
 
 
 # ── Score filtering & quality metrics ────────────────────────────────────────

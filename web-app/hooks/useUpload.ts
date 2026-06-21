@@ -25,7 +25,7 @@ function uploadReducer(
 
 export function useUpload(): {
   state: UploadStateWithProgress
-  upload: (file: File, signal?: AbortSignal) => Promise<void>
+  upload: (file: File, signal?: AbortSignal) => Promise<string | null>
   reset: () => void
 } {
   // UploadStateWithProgress instead of AsyncState<IngestResponse> because
@@ -34,7 +34,7 @@ export function useUpload(): {
   // AsyncState only has loading/success/error — not granular enough for file upload UX.
   const [state, dispatch] = useReducer(uploadReducer, { status: 'idle' })
 
-  const upload = useCallback(async (file: File, signal?: AbortSignal) => {
+  const upload = useCallback(async (file: File, signal?: AbortSignal): Promise<string | null> => {
     // 'uploading' = bytes are being transferred from browser to server.
     // Progress percentage reflects how much of the file has been sent.
     dispatch({ type: 'UPLOADING', progress: 0 })
@@ -54,24 +54,19 @@ export function useUpload(): {
       const response = await aiService.ingest(file, signal)
 
       if (response.error) {
-        // Check if error was due to abort signal
-        if (signal?.aborted) {
-          dispatch({ type: 'ERROR', error: 'Upload cancelled' })
-          return
-        }
-        dispatch({ type: 'ERROR', error: response.error.message })
-        return
+        const message = signal?.aborted ? 'Upload cancelled' : response.error.message
+        dispatch({ type: 'ERROR', error: message })
+        return message
       }
 
       dispatch({ type: 'SUCCESS', data: response.data! })
+      return null
 
     } catch (err) {
-      if (signal?.aborted) {
-        dispatch({ type: 'ERROR', error: 'Upload cancelled' })
-        return
-      }
-      const message = err instanceof Error ? err.message : 'Upload failed'
+      const message = signal?.aborted ? 'Upload cancelled'
+        : err instanceof Error ? err.message : 'Upload failed'
       dispatch({ type: 'ERROR', error: message })
+      return message
     }
   }, [])
 

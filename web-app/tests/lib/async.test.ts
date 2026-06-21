@@ -69,9 +69,10 @@ describe('withRetry', () => {
       maxDelayMs: 1000,
     })
 
+    // Attach rejection handler before advancing timers to avoid unhandled rejection event
+    const assertion = expect(promise).rejects.toThrow(RetryExhaustedError)
     await vi.runAllTimersAsync()
-
-    await expect(promise).rejects.toThrow(RetryExhaustedError)
+    await assertion
     expect(fn).toHaveBeenCalledTimes(3)
   })
 
@@ -174,10 +175,12 @@ describe('withTimeout', () => {
 
     const promise = withTimeout(fn, 2000)
 
+    // Attach rejection handlers before advancing timers to avoid unhandled rejection event
+    const assertType = expect(promise).rejects.toThrow(TimeoutError)
+    const assertMsg = expect(promise).rejects.toThrow('2000ms')
     await vi.advanceTimersByTimeAsync(2001)
-
-    await expect(promise).rejects.toThrow(TimeoutError)
-    await expect(promise).rejects.toThrow('2000ms')
+    await assertType
+    await assertMsg
   })
 
   it('clears the timeout timer when fn resolves before deadline', async () => {
@@ -308,9 +311,10 @@ describe('resilientCall', () => {
       signal: controller.signal,
     })
 
+    // Attach rejection handler before advancing timers to avoid unhandled rejection event
+    const assertion = expect(promise).rejects.toThrow(CancellationError)
     await vi.runAllTimersAsync()
-
-    await expect(promise).rejects.toThrow(CancellationError)
+    await assertion
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
@@ -326,9 +330,10 @@ describe('resilientCall', () => {
       timeoutMs: 500,
     })
 
+    // Attach rejection handler before advancing timers to avoid unhandled rejection event
+    const assertion = expect(promise).rejects.toThrow(RetryExhaustedError)
     await vi.runAllTimersAsync()
-
-    await expect(promise).rejects.toThrow(RetryExhaustedError)
+    await assertion
     expect(fn).toHaveBeenCalledTimes(3)
   })
 
@@ -344,9 +349,10 @@ describe('resilientCall', () => {
       timeoutMs: 5000,
     })
 
+    // Attach rejection handler before advancing timers to avoid unhandled rejection event
+    const assertion = expect(promise).rejects.toThrow('bad request')
     await vi.runAllTimersAsync()
-
-    await expect(promise).rejects.toThrow('bad request')
+    await assertion
     expect(fn).toHaveBeenCalledTimes(1)
   })
 

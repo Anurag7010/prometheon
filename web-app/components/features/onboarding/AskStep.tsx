@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/cn'
 import { useRouter } from 'next/navigation'
+import { getAccessToken } from '@/hooks'
 
 const SUGGESTED = [
   'What is this document about?',
@@ -36,9 +37,13 @@ export function AskStep({ documentId, documentName, onBack, onComplete }: AskSte
     setSources([])
 
     try {
+      const token = getAccessToken()
       const res = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ query: q, document_id: documentId }),
       })
       const data = await res.json()

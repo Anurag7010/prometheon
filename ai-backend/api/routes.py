@@ -99,7 +99,8 @@ class _ChromaDocumentRepository:
                     )
                 seen[source].chunk_count += 1
             return list(seen.values())
-        except Exception:
+        except Exception as exc:
+            logger.warning("chroma_document_list_error", extra={"error": str(exc)})
             return []
 
     async def findById(self, doc_id: str) -> _ChromaDoc | None:

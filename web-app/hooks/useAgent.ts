@@ -26,11 +26,12 @@ export function useAgent(): UseAgentReturn {
     setIsRunning(true)
 
     try {
+      const token = getAccessToken()
       const res = await fetch('/api/agent/run', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAccessToken()}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ query, history }),
       })

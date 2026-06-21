@@ -38,8 +38,9 @@ export function useSearch() {
 
   const loadHistory = useCallback(async () => {
     try {
+      const token = getAccessToken()
       const res = await fetch('/api/search/history', {
-        headers: { 'Authorization': `Bearer ${getAccessToken()}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (res.ok) {
         const data = await res.json() as { history: SearchHistoryItem[] }
@@ -61,11 +62,12 @@ export function useSearch() {
     setSelectedResult(null)
 
     try {
+      const token = getAccessToken()
       const res = await fetch('/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAccessToken()}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ query, ...options }),
         signal: abortRef.current.signal,
@@ -87,9 +89,10 @@ export function useSearch() {
   }, [loadHistory])
 
   const clearHistory = useCallback(async () => {
+    const token = getAccessToken()
     await fetch('/api/search/history', {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${getAccessToken()}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     setHistory([])
   }, [])
