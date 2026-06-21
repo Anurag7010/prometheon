@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/cn'
 import { MarkdownMessage } from '@/components/chat/MarkdownMessage'
 import { SourceCitations } from '@/components/chat/SourceCitations'
@@ -40,8 +41,11 @@ export function MessageBubble({
   if (!message.content && !isStreaming) return null
 
   return (
-    <div
+    <motion.div
       className={cn('group flex gap-3', isUser && 'flex-row-reverse')}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -99,7 +103,11 @@ export function MessageBubble({
                 <MarkdownMessage content={message.content} />
               )}
               {isStreaming && message.content && (
-                <span className="inline-block w-0.5 h-4 bg-ember ml-0.5 animate-pulse align-middle" />
+                <motion.span
+                  className="inline-block w-0.5 h-[1.1em] bg-ember ml-0.5 align-middle rounded-full"
+                  animate={{ scaleY: [1, 0.3, 1] }}
+                  transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}
+                />
               )}
             </>
           )}
@@ -185,6 +193,6 @@ export function MessageBubble({
           <SourceCitations sources={sources} className="w-full" />
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

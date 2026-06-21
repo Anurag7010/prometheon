@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
+import { MarkdownMessage } from '@/components/chat/MarkdownMessage'
 import type { AgentStep } from '@/types'
 
 const TOOL_COLORS: Record<string, string> = {
@@ -87,11 +88,11 @@ export function AgentStepCard({ step, isLast, isAnimating }: AgentStepCardProps)
             <div className="mt-2 space-y-2">
               {/* Tool input */}
               {step.actionInput && Object.keys(step.actionInput).length > 0 && (
-                <div className="rounded-lg bg-muted/50 border border-border overflow-hidden">
-                  <div className="px-3 py-1.5 border-b border-border">
-                    <span className="label-uppercase text-[10px]">Input</span>
+                <div className="rounded-lg bg-forge-dark border border-stone-mid/30 overflow-hidden">
+                  <div className="px-3 py-1.5 border-b border-stone-mid/20">
+                    <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-ash-gray">Input</span>
                   </div>
-                  <pre className="px-3 py-2 text-xs font-mono overflow-x-auto text-foreground/80">
+                  <pre className="px-3 py-2 text-xs font-mono overflow-x-auto text-parchment/70">
                     {JSON.stringify(step.actionInput, null, 2)}
                   </pre>
                 </div>
@@ -99,19 +100,19 @@ export function AgentStepCard({ step, isLast, isAnimating }: AgentStepCardProps)
 
               {/* Observation */}
               {step.observation && (
-                <div className="rounded-lg bg-muted/30 border border-border overflow-hidden">
-                  <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
-                    <span className="label-uppercase text-[10px]">Result</span>
+                <div className="rounded-lg bg-forge-dark/60 border border-stone-mid/20 overflow-hidden">
+                  <div className="px-3 py-1.5 border-b border-stone-mid/20 flex items-center justify-between">
+                    <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-ash-gray">Result</span>
                     {hasMoreObservation && (
                       <button
                         onClick={() => setShowFullObservation(!showFullObservation)}
-                        className="text-[10px] text-brand hover:underline"
+                        className="text-[10px] text-ember hover:underline"
                       >
                         {showFullObservation ? 'Show less' : 'Show more'}
                       </button>
                     )}
                   </div>
-                  <pre className="px-3 py-2 text-xs font-mono overflow-x-auto text-foreground/80 whitespace-pre-wrap">
+                  <pre className="px-3 py-2 text-xs font-mono overflow-x-auto text-parchment/65 whitespace-pre-wrap">
                     {showFullObservation ? step.observation : observationPreview}
                     {!showFullObservation && hasMoreObservation && '...'}
                   </pre>
@@ -120,8 +121,8 @@ export function AgentStepCard({ step, isLast, isAnimating }: AgentStepCardProps)
 
               {/* Final answer */}
               {step.finalAnswer && (
-                <div className="rounded-lg bg-ember/5 border border-ember/20 px-3 py-2">
-                  <p className="text-sm text-parchment/90 leading-relaxed">{step.finalAnswer}</p>
+                <div className="rounded-lg bg-ember/5 border border-ember/20 px-4 py-3">
+                  <MarkdownMessage content={step.finalAnswer} />
                 </div>
               )}
             </div>

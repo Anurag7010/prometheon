@@ -285,6 +285,31 @@
 }
 
 /* ============================================================
+   PROSE-AI — dark mode color overrides (parchment palette)
+   ============================================================ */
+.prose-ai {
+  color: rgba(237, 232, 224, 0.90);
+}
+.prose-ai p, .prose-ai li, .prose-ai td {
+  color: rgba(237, 232, 224, 0.85);
+}
+.prose-ai h1, .prose-ai h2, .prose-ai h3 {
+  color: rgba(237, 232, 224, 0.95);
+}
+.prose-ai strong {
+  color: rgba(237, 232, 224, 1);
+  font-weight: 600;
+}
+.prose-ai a {
+  color: #D4572A;
+}
+.prose-ai code {
+  color: rgba(237, 232, 224, 0.85);
+  background: rgba(76, 85, 96, 0.35);
+  border-color: rgba(76, 85, 96, 0.5);
+}
+
+/* ============================================================
    INPUT FOCUS — ember orange ring globally, no blue/default outlines
    ============================================================ */
 textarea:focus,

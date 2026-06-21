@@ -217,11 +217,21 @@ export default function AgentInterface() {
               <p className="text-ash-gray text-[10px] tracking-widest uppercase mb-4">Reasoning Trace</p>
               <div>
                 {steps.map((step, i) => (
-                  <AgentStepCard
+                  <motion.div
                     key={step.stepNumber}
-                    step={step}
-                    isLast={i === steps.length - 1 && !isRunning}
-                  />
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.4,
+                      delay: i * 0.08,
+                      ease: [0.16, 1, 0.3, 1],
+                    }}
+                  >
+                    <AgentStepCard
+                      step={step}
+                      isLast={i === steps.length - 1 && !isRunning}
+                    />
+                  </motion.div>
                 ))}
 
                 {isRunning && (
@@ -229,7 +239,19 @@ export default function AgentInterface() {
                     <div className="shrink-0 w-7 h-7 rounded-full border-2 border-ember/30 bg-ember/5 flex items-center justify-center">
                       <Spinner size="sm" />
                     </div>
-                    <span className="text-xs text-ash-gray animate-pulse">Thinking...</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-ash-gray">Thinking</span>
+                      <div className="flex gap-1">
+                        {[0, 1, 2].map((i) => (
+                          <motion.span
+                            key={i}
+                            className="w-1 h-1 rounded-full bg-ember/60"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
