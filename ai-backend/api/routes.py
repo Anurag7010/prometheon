@@ -32,11 +32,19 @@ from api.models import (
     RetrieveResponse,
     SourceResponse,
 )
-from observability.logger import get_logger
+from core.user_tier import get_tier_config
+from observability.logger import get_logger, log_pipeline_event
 from observability.tracer import new_trace_id
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+def _resolve_tier(request: Request):
+    """Extract user email from header and return tier config."""
+    email = request.headers.get("X-User-Email")
+    return get_tier_config(email)
+
 
 from core.cost_controller import cost_controller
 
@@ -215,7 +223,7 @@ async def health(request: Request) -> JSONResponse:
 
 
 async def _run_ask_pipeline(
-    body: AskRequest, user_id: str, trace_id: str
+    body: AskRequest, user_id: str, trace_id: str, tier_config=None
 ) -> AskResponse | JSONResponse:
     """The actual RAG/agent pipeline — called via request_queue.run()."""
     from agents.router import QueryRoute, route_query
@@ -227,12 +235,17 @@ async def _run_ask_pipeline(
 
         rag = _RAGAdapter()
         doc_repo = _ChromaDocumentRepository()
-        agent = create_agent(rag_interface=rag, documents_repository=doc_repo)
+        agent = create_agent(
+            rag_interface=rag,
+            documents_repository=doc_repo,
+            tier_config=tier_config,
+        )
         result = await agent.run(
             query=body.query,
             user_id=user_id,
             trace_id=trace_id,
             conversation_history=body.history or [],
+            tier_config=tier_config,
         )
         return AskResponse(
             answer=result.answer,
@@ -247,7 +260,9 @@ async def _run_ask_pipeline(
 
     from rag.rag_interface import ask as rag_ask
 
-    result = await rag_ask(query=body.query, history=body.history, trace_id=trace_id)
+    result = await rag_ask(
+        query=body.query, history=body.history, trace_id=trace_id, tier_config=tier_config
+    )
 
     if result.get("error"):
         logger.error("ask_pipeline_error", extra={"trace_id": trace_id, "error": result["error"]})
@@ -287,6 +302,17 @@ async def ask(body: AskRequest, request: Request) -> AskResponse | JSONResponse:
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
     user_id: str = request.headers.get("X-User-ID", "anonymous")
+    tier_config = _resolve_tier(request)
+
+    log_pipeline_event(
+        event="user_tier_resolved",
+        trace_id=trace_id,
+        metadata={
+            "tier": tier_config.tier.value,
+            "llm_provider": tier_config.llm_provider,
+            "embedding_provider": tier_config.embedding_provider,
+        },
+    )
 
     # 1. Rate limit check
     rate_result = ask_rate_limiter.check(user_id, trace_id)
@@ -323,6 +349,7 @@ async def ask(body: AskRequest, request: Request) -> AskResponse | JSONResponse:
             body,
             user_id,
             trace_id,
+            tier_config=tier_config,
             trace_id=trace_id,
         )
     except TimeoutError as exc:
@@ -369,6 +396,7 @@ async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
       data: {"type": "error",   "message": "..."}    — only on failure
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
+    tier_config = _resolve_tier(request)
 
     async def generate():
         t0 = time.perf_counter()
@@ -376,7 +404,9 @@ async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
             from core.llm_client import stream as llm_stream
             from rag.rag_interface import retrieve as rag_retrieve
 
-            chunks: list[dict] = await rag_retrieve(body.query, body.top_k, body.strategy)
+            chunks: list[dict] = await rag_retrieve(
+                body.query, body.top_k, body.strategy, tier_config=tier_config
+            )
             valid_chunks = [c for c in chunks if "error" not in c]
 
             # Build plain-text context from retrieved dicts
@@ -391,7 +421,7 @@ async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
             )
 
             # Stream LLM tokens one by one
-            async for token in llm_stream(prompt, trace_id=trace_id):
+            async for token in llm_stream(prompt, trace_id=trace_id, tier_config=tier_config):
                 yield _sse_event({"type": "token", "content": token})
 
             # Sources arrive after the last token — user sees answer first, sources below
@@ -550,10 +580,11 @@ async def retrieve(
     or for building UI features that show source documents before the answer.
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
+    tier_config = _resolve_tier(request)
     try:
         from rag.rag_interface import retrieve as rag_retrieve
 
-        raw_chunks = await rag_retrieve(query=query, top_k=top_k, strategy=strategy)
+        raw_chunks = await rag_retrieve(query=query, top_k=top_k, strategy=strategy, tier_config=tier_config)
 
         # Check if retrieve() returned an error list
         if raw_chunks and "error" in raw_chunks[0]:
@@ -588,19 +619,25 @@ async def run_agent(body: AskRequest, request: Request) -> AgentRunResponse | JS
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
     user_id: str = request.headers.get("X-User-ID", "anonymous")
+    tier_config = _resolve_tier(request)
 
     try:
         from agents.factory import create_agent
 
         rag = _RAGAdapter()
         doc_repo = _ChromaDocumentRepository()
-        agent = create_agent(rag_interface=rag, documents_repository=doc_repo)
+        agent = create_agent(
+            rag_interface=rag,
+            documents_repository=doc_repo,
+            tier_config=tier_config,
+        )
 
         result = await agent.run(
             query=body.query,
             user_id=user_id,
             trace_id=trace_id,
             conversation_history=body.history or [],
+            tier_config=tier_config,
         )
 
         return AgentRunResponse(
@@ -734,6 +771,7 @@ async def extract_and_store_memories(
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
     user_id = body.get("user_id")
     messages = body.get("messages", [])
+    tier_config = _resolve_tier(request)
 
     if not user_id:
         return _error_response("missing_user_id", "user_id required in body", trace_id, 400)
@@ -743,7 +781,7 @@ async def extract_and_store_memories(
             from memory.long_term_memory import LongTermMemoryStore
             from memory.memory_extractor import extract_memories
 
-            facts = await extract_memories(messages, trace_id=trace_id)
+            facts = await extract_memories(messages, trace_id=trace_id, tier_config=tier_config)
             store = LongTermMemoryStore()
             for fact in facts:
                 await store.store_memory(user_id, fact, trace_id=trace_id)

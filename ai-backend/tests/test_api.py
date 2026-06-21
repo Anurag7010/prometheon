@@ -287,7 +287,10 @@ class TestRetrieve:
         with patch("rag.rag_interface.retrieve", return_value=MOCK_RETRIEVE_CHUNKS) as mock_retrieve:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 await client.get("/retrieve?query=test&strategy=hybrid", headers=HEADERS)
-        mock_retrieve.assert_called_once_with(query="test", top_k=5, strategy="hybrid")
+        call_kwargs = mock_retrieve.call_args.kwargs
+        assert call_kwargs["query"] == "test"
+        assert call_kwargs["top_k"] == 5
+        assert call_kwargs["strategy"] == "hybrid"
 
 
 # ── POST /ask/stream ──────────────────────────────────────────────────────────
