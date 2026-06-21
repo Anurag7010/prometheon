@@ -12,6 +12,7 @@ export function useAsk(): {
   ask: (query: string) => Promise<void>
   askStream: (query: string) => Promise<void>
   clearHistory: () => void
+  loadHistory: (msgs: Message[]) => void
   isStreaming: boolean
 } {
   const { state, execute, reset } = useAsyncState<AskResponse>()
@@ -194,5 +195,16 @@ export function useAsk(): {
     abortCtrl.reset()
   }, [reset, abortCtrl])
 
-  return { state, messages, ask, askStream, clearHistory, isStreaming }
+  const loadHistory = useCallback((msgs: Message[]) => {
+    if (flushTimer.current) {
+      clearTimeout(flushTimer.current)
+      flushTimer.current = null
+    }
+    tokenBuffer.current = ''
+    setMessages(msgs)
+    setIsStreaming(false)
+    reset()
+  }, [reset])
+
+  return { state, messages, ask, askStream, clearHistory, loadHistory, isStreaming }
 }

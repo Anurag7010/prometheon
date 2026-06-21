@@ -57,12 +57,40 @@ export function ChatInterface({ documentId: _documentId, documentName }: ChatInt
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { state, messages, askStream, clearHistory, isStreaming } = useAsk()
+  const { state, messages, askStream, clearHistory, loadHistory, isStreaming } = useAsk()
   const router = useRouter()
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isStreaming])
+
+  useEffect(() => {
+    if (!conversationId) return
+    let cancelled = false
+    async function fetchMessages() {
+      const token = getAccessToken()
+      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok || cancelled) return
+      const data: unknown = await res.json()
+      if (
+        data &&
+        typeof data === 'object' &&
+        'messages' in data &&
+        Array.isArray((data as { messages: unknown }).messages)
+      ) {
+        const raw = (data as { messages: Array<{ role: string; content: string }> }).messages
+        const loaded: Message[] = raw.map((m) => ({
+          role: m.role as Message['role'],
+          content: m.content,
+        }))
+        loadHistory(loaded)
+      }
+    }
+    fetchMessages()
+    return () => { cancelled = true }
+  }, [conversationId, loadHistory])
 
   async function ensureConversation(): Promise<string> {
     if (conversationId) return conversationId
@@ -80,12 +108,29 @@ export function ChatInterface({ documentId: _documentId, documentName }: ChatInt
     return id
   }
 
+  async function autoTitle(convId: string, firstUserMessage: string) {
+    const title = firstUserMessage.trim().slice(0, 45)
+    const token = getAccessToken()
+    await fetch(`/api/conversations/${convId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ title }),
+    })
+  }
+
   async function handleSubmit() {
     if (!query.trim() || isStreaming) return
     const q = query.trim()
     setQuery('')
-    await ensureConversation()
+    const convId = await ensureConversation()
+    const isFirstMessage = messages.length === 0
     await askStream(q)
+    if (isFirstMessage && convId) {
+      autoTitle(convId, q)
+    }
   }
 
   function handleNewConversation() {
