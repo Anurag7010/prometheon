@@ -37,7 +37,8 @@ def test_input_schema_validates_max_results_range():
 
 async def test_fallback_when_api_key_empty():
     tool = WebSearchTool()
-    with patch("agents.tools.web_search.config", _config_with_key("")):
+    with patch("agents.tools.web_search.config", _config_with_key("")), \
+         patch.dict("os.environ", {"TAVILY_API_KEY": ""}):
         result = await tool.execute({"query": "anything"})
     assert result.success is True
     assert result.output[0]["title"] == "Web search not configured"
