@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
+import { relevanceTier } from '@/lib/relevance'
 import type { Source } from '@/types'
 
 interface SourceCitationsProps {
@@ -28,7 +29,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
   const [expanded, setExpanded] = useState(false)
 
   const score = source.score ?? 0
-  const quality = score >= 0.85 ? 'high' : score >= 0.7 ? 'medium' : 'low'
+  const quality = relevanceTier(score)
 
   const qualityColors = {
     high: 'bg-green-500/10 text-green-600 border-green-500/20',

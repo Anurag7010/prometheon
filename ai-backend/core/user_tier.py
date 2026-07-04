@@ -23,13 +23,19 @@ class TierConfig:
     """Full provider configuration for a user's tier."""
 
     tier: UserTier
-    llm_provider: str        # "openai" | "groq"
+    llm_provider: str  # "openai" | "groq"
     llm_model: str
-    fast_model: str          # cheaper model for extraction/judge
+    fast_model: str  # cheaper model for extraction/judge
     embedding_provider: str  # "openai" | "huggingface"
     embedding_model: str
     max_tokens: int
     temperature: float
+    # Retrieval-quality thresholds, calibrated to the embedding model's cosine
+    # score distribution: MiniLM scores run ~0.15-0.25 lower than OpenAI's for
+    # equally relevant matches, so a shared scale would mislabel free-tier
+    # retrievals as low confidence.
+    quality_good_threshold: float = 0.8
+    quality_fair_threshold: float = 0.65
 
     @property
     def is_owner(self) -> bool:
@@ -57,6 +63,8 @@ _FREE_CONFIG = TierConfig(
     embedding_model="all-MiniLM-L6-v2",
     max_tokens=2000,
     temperature=0.0,
+    quality_good_threshold=0.55,
+    quality_fair_threshold=0.40,
 )
 
 

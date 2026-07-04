@@ -434,13 +434,15 @@ def filter_by_score(chunks: list[dict], threshold: float) -> list[dict]:
     return [c for c in chunks if c.get("score") is not None and c.get("score", 0) >= threshold]
 
 
-def compute_retrieval_quality(chunks: list[dict]) -> dict:
-    """Compute quality metrics for a retrieval result."""
+def compute_retrieval_quality(chunks: list[dict], tier_config: Any = None) -> dict:
+    """Compute quality metrics for a retrieval result, using tier-calibrated thresholds."""
     if not chunks:
         return {"quality": "no_results", "max_score": 0.0, "avg_score": 0.0, "chunk_count": 0}
+    good = getattr(tier_config, "quality_good_threshold", 0.8)
+    fair = getattr(tier_config, "quality_fair_threshold", 0.65)
     scores = [c.get("score", 0) for c in chunks]
     return {
-        "quality": "good" if max(scores) >= 0.8 else "fair" if max(scores) >= 0.65 else "poor",
+        "quality": "good" if max(scores) >= good else "fair" if max(scores) >= fair else "poor",
         "max_score": round(max(scores), 3),
         "avg_score": round(sum(scores) / len(scores), 3),
         "chunk_count": len(chunks),
@@ -667,7 +669,7 @@ async def prepare_ask(
         chunks = await retrieve(sanitized_query, trace_id=tid, tier_config=tier_config)
     retrieval_ms = tr.latency_ms
 
-    quality = compute_retrieval_quality(chunks)
+    quality = compute_retrieval_quality(chunks, tier_config=tier_config)
     log_retrieval(
         trace_id=tid,
         query=sanitized_query,

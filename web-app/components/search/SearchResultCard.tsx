@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
+import { relevanceTier } from '@/lib/relevance'
 import { Button } from '@/components/ui'
 
 interface SearchResult {
@@ -57,9 +58,10 @@ export function SearchResultCard({
   const [copied, setCopied] = useState(false)
 
   const score = result.score ?? 0
+  const tier = relevanceTier(score)
   const quality =
-    score >= 0.85 ? { label: 'High', colorClass: 'text-green-400', barClass: 'bg-green-500' } :
-    score >= 0.7  ? { label: 'Medium', colorClass: 'text-yellow-400', barClass: 'bg-yellow-500' } :
+    tier === 'high'   ? { label: 'High', colorClass: 'text-green-400', barClass: 'bg-green-500' } :
+    tier === 'medium' ? { label: 'Medium', colorClass: 'text-yellow-400', barClass: 'bg-yellow-500' } :
     { label: 'Low', colorClass: 'text-ash-gray', barClass: 'bg-stone-mid/60' }
 
   const sourceName = result.metadata?.source as string || 'Unknown source'
