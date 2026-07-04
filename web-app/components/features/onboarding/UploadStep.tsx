@@ -43,7 +43,10 @@ export function UploadStep({ onComplete, onSkip, onBack }: UploadStepProps) {
       })
       if (!res.ok) throw new Error('Upload failed')
 
-      const { id } = await res.json()
+      // Route responds { data: { documentId, status, chunkCount }, requestId }
+      const body = (await res.json()) as { data?: { documentId?: string } }
+      const id = body.data?.documentId
+      if (!id) throw new Error('Upload response missing document id')
       setStatus('processing')
 
       // Poll until ingested
@@ -59,13 +62,15 @@ export function UploadStep({ onComplete, onSkip, onBack }: UploadStepProps) {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
         if (r.ok) {
-          const doc = await r.json()
-          if (doc.status === 'ingested') {
+          // Route responds { data: document, requestId }
+          const docBody = (await r.json()) as { data?: { status?: string } }
+          const doc = docBody.data
+          if (doc?.status === 'ingested') {
             setStatus('ready')
             setTimeout(() => onComplete(id, file.name), 800)
             return
           }
-          if (doc.status === 'failed') {
+          if (doc?.status === 'failed') {
             setStatus('error')
             setError('Processing failed. Please try another file.')
             return
