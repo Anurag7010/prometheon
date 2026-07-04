@@ -3,7 +3,7 @@ import { useAsyncState } from './useAsyncState'
 import { useAbortController } from './useAbortController'
 import { aiService } from '../services/ai-service'
 import { CancellationError } from '../lib/async'
-import type { Message, AskResponse, Source } from '../types'
+import type { Message, AskResponse, Source, RetrievalQuality } from '../types'
 import type { AsyncState } from '../types'
 
 export function useAsk(): {
@@ -114,6 +114,8 @@ export function useAsk(): {
     let sources: Source[] = []
     let streamError: string | null = null
     let succeeded = false
+    let noResults = false
+    let retrievalQuality: RetrievalQuality | undefined
 
     await execute(async () => {
       const generator = aiService.askStream(
@@ -131,6 +133,8 @@ export function useAsk(): {
         } else if (event.type === 'sources') {
           sources = event.sources
         } else if (event.type === 'done') {
+          noResults = event.noResults ?? false
+          retrievalQuality = event.retrievalQuality
           // Flush any remaining buffered tokens synchronously before settling
           if (flushTimer.current) {
             clearTimeout(flushTimer.current)
@@ -155,16 +159,23 @@ export function useAsk(): {
       if (currentSignal.aborted) throw new CancellationError('stream aborted')
       if (streamError) throw new Error(streamError)
 
-      // Build a synthetic AskResponse from the streamed content
-      // Read the final assistant message content from state (after flush)
+      // Build a synthetic AskResponse from the streamed content.
+      // Quality and no_results come from the backend's done event; if an older
+      // backend omits them, fall back to what the sources themselves tell us —
+      // never claim confidence for an answer with zero retrieved sources.
       const synthResponse: AskResponse = {
         answer: '',    // hook consumers read from messages[], not from state.data
         sources,
         traceId: '',
         latencyBreakdown: { retrievalMs: 0, generationMs: 0, totalMs: 0 },
         guardrailRejected: false,
-        noResults: false,
-        retrievalQuality: { quality: 'good', maxScore: 0, avgScore: 0, chunkCount: 0 },
+        noResults,
+        retrievalQuality: retrievalQuality ?? {
+          quality: sources.length === 0 ? 'no_results' : 'good',
+          maxScore: 0,
+          avgScore: 0,
+          chunkCount: sources.length,
+        },
       }
 
       // Attach sources and apply warning role if guardrail rejected or no results

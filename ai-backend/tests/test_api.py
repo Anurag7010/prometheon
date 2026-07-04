@@ -392,6 +392,49 @@ class TestAskStream:
             res = await client.post("/ask/stream", json={}, headers=HEADERS)
         assert res.status_code == 422
 
+    async def test_no_results_skips_llm_and_emits_no_results_flag(self):
+        """Zero retrieved chunks must short-circuit: canonical no-results answer,
+        empty sources, done event flagged no_results — the LLM must never be called
+        with an empty context (it would hallucinate a free-form answer)."""
+        llm_called = False
+
+        async def tracking_stream(*args, **kwargs):
+            nonlocal llm_called
+            llm_called = True
+            yield "should not happen"
+
+        with patch("rag.rag_interface.retrieve", return_value=[]), \
+             patch("core.llm_client.stream", tracking_stream):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post("/ask/stream", json={"query": "What is this?"}, headers=HEADERS)
+        assert res.status_code == 200
+        events = await _read_sse_events(res)
+        assert not llm_called
+
+        token_events = [e for e in events if e.get("type") == "token"]
+        assert len(token_events) == 1
+        assert "couldn't find relevant information" in token_events[0]["content"]
+
+        sources = next(e for e in events if e.get("type") == "sources")
+        assert sources["sources"] == []
+
+        done = next(e for e in events if e.get("type") == "done")
+        assert done["no_results"] is True
+        assert done["retrieval_quality"]["quality"] == "no_results"
+
+    async def test_done_event_includes_retrieval_quality(self):
+        """Done event must carry real retrieval quality so the UI's confidence
+        badge reflects actual scores instead of a hardcoded 'good'."""
+        with patch("rag.rag_interface.retrieve", return_value=MOCK_RETRIEVE_CHUNKS), \
+             patch("core.llm_client.stream", _mock_llm_stream):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post("/ask/stream", json={"query": "What is this?"}, headers=HEADERS)
+        events = await _read_sse_events(res)
+        done = next(e for e in events if e.get("type") == "done")
+        assert done["no_results"] is False
+        assert done["retrieval_quality"]["quality"] == "good"
+        assert done["retrieval_quality"]["chunk_count"] == 1
+
     async def test_llm_error_yields_error_event(self):
         """LLM error mid-stream must yield error SSE event — the server must not crash."""
         async def erroring_stream(*args, **kwargs):

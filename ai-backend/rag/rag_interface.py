@@ -408,6 +408,12 @@ def _generate_answer(query: str, docs: list, history: list | None, deps: dict) -
 
 # ── Score filtering & quality metrics ────────────────────────────────────────
 
+# Canonical answer when retrieval finds nothing — shared by ask() and /ask/stream
+# so both paths tell the user the same honest thing instead of hallucinating.
+NO_RESULTS_ANSWER = (
+    "I couldn't find relevant information in the provided documents to answer your question."
+)
+
 
 def filter_by_score(chunks: list[dict], threshold: float) -> list[dict]:
     """Filter out chunks below the relevance threshold. Empty is better than misleading."""
@@ -675,7 +681,7 @@ async def ask(
                 metadata={"total_ms": round(total_ms, 2), "status": "no_results"},
             )
             return {
-                "answer": "I couldn't find relevant information in the provided documents to answer your question.",
+                "answer": NO_RESULTS_ANSWER,
                 "sources": [],
                 "trace_id": tid,
                 "latency_breakdown": {

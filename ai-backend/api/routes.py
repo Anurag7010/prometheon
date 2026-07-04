@@ -410,12 +410,34 @@ async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
         t0 = time.perf_counter()
         try:
             from core.llm_client import stream as llm_stream
-            from rag.rag_interface import retrieve as rag_retrieve
+            from rag.rag_interface import (
+                NO_RESULTS_ANSWER,
+                compute_retrieval_quality,
+                retrieve as rag_retrieve,
+            )
 
             chunks: list[dict] = await rag_retrieve(
                 body.query, body.top_k, body.strategy, tier_config=tier_config
             )
             valid_chunks = [c for c in chunks if "error" not in c]
+            quality = compute_retrieval_quality(valid_chunks)
+
+            # No relevant chunks: same honest short-circuit as the non-streaming
+            # ask() path — never hand the LLM an empty context to hallucinate from.
+            if not valid_chunks:
+                yield _sse_event({"type": "token", "content": NO_RESULTS_ANSWER})
+                yield _sse_event({"type": "sources", "sources": []})
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                yield _sse_event(
+                    {
+                        "type": "done",
+                        "trace_id": trace_id,
+                        "latency_ms": latency_ms,
+                        "no_results": True,
+                        "retrieval_quality": quality,
+                    }
+                )
+                return
 
             # Build plain-text context from retrieved dicts
             context_parts = [
@@ -444,7 +466,15 @@ async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
             yield _sse_event({"type": "sources", "sources": sources})
 
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-            yield _sse_event({"type": "done", "trace_id": trace_id, "latency_ms": latency_ms})
+            yield _sse_event(
+                {
+                    "type": "done",
+                    "trace_id": trace_id,
+                    "latency_ms": latency_ms,
+                    "no_results": False,
+                    "retrieval_quality": quality,
+                }
+            )
 
         except Exception as exc:
             logger.error(

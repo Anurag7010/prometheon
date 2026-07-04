@@ -1,11 +1,17 @@
-import type { Source } from '@/types'
+import type { Source, RetrievalQuality } from '@/types'
 
 // ── SSE event types matching the Python backend ───────────────────────────────
 
 export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'sources'; sources: Source[] }
-  | { type: 'done'; traceId: string; latencyMs: number }
+  | {
+      type: 'done'
+      traceId: string
+      latencyMs: number
+      noResults?: boolean
+      retrievalQuality?: RetrievalQuality
+    }
   | { type: 'error'; message: string }
 
 // ── SSEParser ─────────────────────────────────────────────────────────────────
@@ -83,12 +89,31 @@ export class SSEParser {
         })
         return { type: 'sources', sources }
       }
-      case 'done':
+      case 'done': {
+        let retrievalQuality: RetrievalQuality | undefined
+        const rawQuality = data['retrieval_quality']
+        if (rawQuality && typeof rawQuality === 'object') {
+          const rq = rawQuality as Record<string, unknown>
+          const quality = rq['quality']
+          if (
+            quality === 'good' || quality === 'fair' || quality === 'poor' || quality === 'no_results'
+          ) {
+            retrievalQuality = {
+              quality,
+              maxScore: typeof rq['max_score'] === 'number' ? rq['max_score'] : 0,
+              avgScore: typeof rq['avg_score'] === 'number' ? rq['avg_score'] : 0,
+              chunkCount: typeof rq['chunk_count'] === 'number' ? rq['chunk_count'] : 0,
+            }
+          }
+        }
         return {
           type: 'done',
           traceId: typeof data['trace_id'] === 'string' ? data['trace_id'] : '',
           latencyMs: typeof data['latency_ms'] === 'number' ? data['latency_ms'] : 0,
+          ...(typeof data['no_results'] === 'boolean' ? { noResults: data['no_results'] } : {}),
+          ...(retrievalQuality ? { retrievalQuality } : {}),
         }
+      }
       case 'error':
         return {
           type: 'error',

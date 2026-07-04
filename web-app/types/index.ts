@@ -37,6 +37,7 @@ export type {
   PaginatedResponse,
   AskRequest,
   AskResponse,
+  RetrievalQuality,
   IngestRequest,
   IngestResponse,
   DocumentListResponse,

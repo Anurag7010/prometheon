@@ -85,6 +85,13 @@ export type AskRequest = {
   readonly signal?: AbortSignal 
 }
 
+export type RetrievalQuality = {
+  readonly quality: 'good' | 'fair' | 'poor' | 'no_results'
+  readonly maxScore: number
+  readonly avgScore: number
+  readonly chunkCount: number
+}
+
 export type AskResponse = {
   readonly answer: string
   readonly sources: readonly Source[]
@@ -92,12 +99,7 @@ export type AskResponse = {
   readonly latencyBreakdown: LatencyBreakdown
   readonly guardrailRejected: boolean
   readonly noResults: boolean
-  readonly retrievalQuality: {
-    readonly quality: 'good' | 'fair' | 'poor' | 'no_results'
-    readonly maxScore: number
-    readonly avgScore: number
-    readonly chunkCount: number
-  }
+  readonly retrievalQuality: RetrievalQuality
   readonly routedTo?: 'rag' | 'agent'
 }
 

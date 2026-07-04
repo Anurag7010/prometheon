@@ -37,6 +37,38 @@ describe('SSEParser', () => {
     expect(events[0]).toEqual({ type: 'done', traceId: 'abc', latencyMs: 1234 })
   })
 
+  it('parses no_results and retrieval_quality on the done event', () => {
+    const events = parser.parse(
+      'data: {"type":"done","trace_id":"abc","latency_ms":50,"no_results":true,"retrieval_quality":{"quality":"no_results","max_score":0,"avg_score":0,"chunk_count":0}}\n\n'
+    )
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({
+      type: 'done',
+      traceId: 'abc',
+      latencyMs: 50,
+      noResults: true,
+      retrievalQuality: { quality: 'no_results', maxScore: 0, avgScore: 0, chunkCount: 0 },
+    })
+  })
+
+  it('parses real retrieval_quality scores on the done event', () => {
+    const events = parser.parse(
+      'data: {"type":"done","trace_id":"t","latency_ms":10,"no_results":false,"retrieval_quality":{"quality":"fair","max_score":0.72,"avg_score":0.68,"chunk_count":3}}\n\n'
+    )
+    expect(events[0]).toEqual({
+      type: 'done',
+      traceId: 't',
+      latencyMs: 10,
+      noResults: false,
+      retrievalQuality: { quality: 'fair', maxScore: 0.72, avgScore: 0.68, chunkCount: 3 },
+    })
+  })
+
+  it('omits noResults and retrievalQuality when the backend does not send them', () => {
+    const events = parser.parse('data: {"type":"done","trace_id":"abc","latency_ms":5}\n\n')
+    expect(events[0]).toEqual({ type: 'done', traceId: 'abc', latencyMs: 5 })
+  })
+
   it('parses an error event', () => {
     const events = parser.parse('data: {"type":"error","message":"LLM timeout"}\n\n')
     expect(events).toHaveLength(1)
