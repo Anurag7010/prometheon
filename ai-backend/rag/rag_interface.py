@@ -597,6 +597,120 @@ async def retrieve(
         return [{"error": str(exc)}]
 
 
+async def prepare_ask(
+    query: str,
+    history: list[dict] | None = None,
+    user_id: str | None = None,
+    trace_id: str | None = None,
+    tier_config: Any = None,
+) -> dict:
+    """
+    Shared pipeline prep for ask() and /ask/stream:
+    guardrails → memories → retrieval → quality → token-aware context build.
+
+    Returns a dict discriminated by "status":
+      guardrail_rejected → {status, trace_id, reason, quality}
+      no_results         → {status, trace_id, retrieval_ms, quality}
+      ready              → {status, trace_id, sanitized_query, effective_history,
+                            gen_context, used_chunks, quality, retrieval_ms}
+    """
+    tid = trace_id or new_trace_id()
+
+    # Load and trim conversation history via ConversationBuffer
+    from memory.conversation_buffer import ConversationBuffer
+
+    buffer = ConversationBuffer(max_tokens=2000, strategy="window")
+    if history:
+        buffer.load_from_db(
+            [{"role": m["role"], "content": m["content"], "token_count": 0} for m in history]
+        )
+        buffer.trim(tid)
+    effective_history = buffer.to_messages()
+
+    empty_quality = {
+        "quality": "no_results",
+        "max_score": 0.0,
+        "avg_score": 0.0,
+        "chunk_count": 0,
+    }
+
+    # Step 1: Guardrail check
+    guardrail_result = await check_query(query, trace_id=tid)
+    if not guardrail_result.passed:
+        return {
+            "status": "guardrail_rejected",
+            "trace_id": tid,
+            "reason": guardrail_result.reason,
+            "quality": empty_quality,
+        }
+
+    sanitized_query = guardrail_result.sanitized_query
+
+    # Retrieve long-term memories for this user if user_id is provided
+    memory_context = ""
+    if user_id:
+        from memory.long_term_memory import LongTermMemoryStore
+
+        store = LongTermMemoryStore()
+        memories = await store.retrieve_memories(
+            user_id=user_id,
+            query=sanitized_query,
+            top_k=5,
+            trace_id=tid,
+        )
+        if memories:
+            facts = "\n".join(f"- {m['content']}" for m in memories)
+            memory_context = f"What you know about this user:\n{facts}"
+
+    # Step 2: Retrieval with score-threshold filtering
+    with Tracer("retrieval", trace_id=tid) as tr:
+        chunks = await retrieve(sanitized_query, trace_id=tid, tier_config=tier_config)
+    retrieval_ms = tr.latency_ms
+
+    quality = compute_retrieval_quality(chunks)
+    log_retrieval(
+        trace_id=tid,
+        query=sanitized_query,
+        strategy=config.DEFAULT_RETRIEVAL_STRATEGY,
+        top_k=config.DEFAULT_TOP_K,
+        result_count=len(chunks),
+        latency_ms=retrieval_ms,
+    )
+
+    # Step 3: Check if retrieval found anything
+    if not chunks:
+        return {
+            "status": "no_results",
+            "trace_id": tid,
+            "retrieval_ms": retrieval_ms,
+            "quality": quality,
+        }
+
+    # Step 4: Build context (token-aware, with citation_ids)
+    context_string, used_chunks = build_context(chunks, max_tokens=3000)
+
+    # Prepend user memory context if available
+    if memory_context:
+        context_string = f"{memory_context}\n\n{context_string}"
+
+    # Prepend conversation history so the LLM has turn context
+    gen_context = context_string
+    if effective_history:
+        history_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in effective_history)
+        gen_context = f"Conversation history:\n{history_text}\n\n{gen_context}"
+
+    return {
+        "status": "ready",
+        "trace_id": tid,
+        "sanitized_query": sanitized_query,
+        "effective_history": effective_history,
+        "gen_context": gen_context,
+        "used_chunks": used_chunks,
+        "quality": quality,
+        "retrieval_ms": retrieval_ms,
+    }
+
+
 async def ask(
     query: str,
     history: list[dict] | None = None,
@@ -614,28 +728,19 @@ async def ask(
     tid = trace_id or new_trace_id()
     log_pipeline_event(event="pipeline_start", trace_id=tid, metadata={"query": query[:120]})
 
-    # Load and trim conversation history via ConversationBuffer
-    from memory.conversation_buffer import ConversationBuffer
-
-    buffer = ConversationBuffer(max_tokens=2000, strategy="window")
-    if history:
-        buffer.load_from_db(
-            [{"role": m["role"], "content": m["content"], "token_count": 0} for m in history]
-        )
-        buffer.trim(tid)
-    effective_history = buffer.to_messages()
-
     retrieval_ms = 0.0
     generation_ms = 0.0
     t_total = time.perf_counter()
 
     try:
-        # Step 1: Guardrail check
-        guardrail_result = await check_query(query, trace_id=tid)
-        if not guardrail_result.passed:
+        prep = await prepare_ask(
+            query, history=history, user_id=user_id, trace_id=tid, tier_config=tier_config
+        )
+
+        if prep["status"] == "guardrail_rejected":
             total_ms = (time.perf_counter() - t_total) * 1000
             return {
-                "answer": guardrail_result.reason,
+                "answer": prep["reason"],
                 "sources": [],
                 "trace_id": tid,
                 "latency_breakdown": {
@@ -646,50 +751,12 @@ async def ask(
                 "error": None,
                 "guardrail_rejected": True,
                 "no_results": False,
-                "retrieval_quality": {
-                    "quality": "no_results",
-                    "max_score": 0.0,
-                    "avg_score": 0.0,
-                    "chunk_count": 0,
-                },
+                "retrieval_quality": prep["quality"],
             }
 
-        # Use sanitized query from guardrail
-        sanitized_query = guardrail_result.sanitized_query
+        retrieval_ms = prep["retrieval_ms"]
 
-        # Retrieve long-term memories for this user if user_id is provided
-        memory_context = ""
-        if user_id:
-            from memory.long_term_memory import LongTermMemoryStore
-
-            store = LongTermMemoryStore()
-            memories = await store.retrieve_memories(
-                user_id=user_id,
-                query=sanitized_query,
-                top_k=5,
-                trace_id=tid,
-            )
-            if memories:
-                facts = "\n".join(f"- {m['content']}" for m in memories)
-                memory_context = f"What you know about this user:\n{facts}"
-
-        # Step 2: Retrieval with score-threshold filtering
-        with Tracer("retrieval", trace_id=tid) as tr:
-            chunks = await retrieve(sanitized_query, trace_id=tid, tier_config=tier_config)
-        retrieval_ms = tr.latency_ms
-
-        quality = compute_retrieval_quality(chunks)
-        log_retrieval(
-            trace_id=tid,
-            query=sanitized_query,
-            strategy=config.DEFAULT_RETRIEVAL_STRATEGY,
-            top_k=config.DEFAULT_TOP_K,
-            result_count=len(chunks),
-            latency_ms=retrieval_ms,
-        )
-
-        # Step 3: Check if retrieval found anything
-        if not chunks:
+        if prep["status"] == "no_results":
             total_ms = (time.perf_counter() - t_total) * 1000
             log_pipeline_event(
                 event="pipeline_end",
@@ -708,15 +775,14 @@ async def ask(
                 "error": None,
                 "guardrail_rejected": False,
                 "no_results": True,
-                "retrieval_quality": quality,
+                "retrieval_quality": prep["quality"],
             }
 
-        # Step 4: Build context (token-aware, with citation_ids)
-        context_string, used_chunks = build_context(chunks, max_tokens=3000)
-
-        # Prepend user memory context if available
-        if memory_context:
-            context_string = f"{memory_context}\n\n{context_string}"
+        sanitized_query = prep["sanitized_query"]
+        effective_history = prep["effective_history"]
+        gen_context = prep["gen_context"]
+        used_chunks = prep["used_chunks"]
+        quality = prep["quality"]
 
         # Step 5: LLM cache check
         from core.cache import llm_cache
@@ -759,13 +825,6 @@ async def ask(
         )
 
         # Step 6: Generate answer using PromptRegistry
-        # Prepend conversation history to context if available so the LLM has turn context
-        gen_context = context_string
-        if effective_history:
-            history_text = "\n".join(
-                f"{m['role'].upper()}: {m['content']}" for m in effective_history
-            )
-            gen_context = f"Conversation history:\n{history_text}\n\n{gen_context}"
         with Tracer("generation", trace_id=tid) as tg:
             gen_result = await complete_with_fallback(
                 prompt_name="qa",

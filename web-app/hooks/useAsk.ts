@@ -57,7 +57,11 @@ export function useAsk(): {
     // Capture history BEFORE appending the new user message.
     // The AI backend receives previous context but not the current question
     // duplicated — the question is in the 'query' field, not the history array.
-    const historyBeforeThisMessage = [...messages]
+    // Warning-role messages (guardrail rejections, no-results notices) are
+    // dropped: the API schema only accepts user/assistant turns.
+    const historyBeforeThisMessage = messages.filter(
+      m => m.role === 'user' || m.role === 'assistant'
+    )
 
     // Append user message immediately — before the API call.
     // This gives instant visual feedback: user sees their message appear
@@ -97,7 +101,10 @@ export function useAsk(): {
     abortCtrl.reset()
     const currentSignal = abortCtrl.signal
 
-    const historyBeforeThisMessage = [...messages]
+    // Same filtering as ask(): the API history schema only accepts user/assistant.
+    const historyBeforeThisMessage = messages.filter(
+      m => m.role === 'user' || m.role === 'assistant'
+    )
 
     // Clear any pending token flush from a previous stream
     if (flushTimer.current) clearTimeout(flushTimer.current)
@@ -115,6 +122,7 @@ export function useAsk(): {
     let streamError: string | null = null
     let succeeded = false
     let noResults = false
+    let guardrailRejected = false
     let retrievalQuality: RetrievalQuality | undefined
 
     await execute(async () => {
@@ -134,6 +142,7 @@ export function useAsk(): {
           sources = event.sources
         } else if (event.type === 'done') {
           noResults = event.noResults ?? false
+          guardrailRejected = event.guardrailRejected ?? false
           retrievalQuality = event.retrievalQuality
           // Flush any remaining buffered tokens synchronously before settling
           if (flushTimer.current) {
@@ -168,7 +177,7 @@ export function useAsk(): {
         sources,
         traceId: '',
         latencyBreakdown: { retrievalMs: 0, generationMs: 0, totalMs: 0 },
-        guardrailRejected: false,
+        guardrailRejected,
         noResults,
         retrievalQuality: retrievalQuality ?? {
           quality: sources.length === 0 ? 'no_results' : 'good',

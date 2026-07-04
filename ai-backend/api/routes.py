@@ -394,66 +394,103 @@ def _sse_event(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-@router.post("/ask/stream", tags=["rag"])
-async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
+@router.post("/ask/stream", tags=["rag"], response_model=None)
+async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse | JSONResponse:
     """
-    Streaming version of /ask.
+    Streaming version of /ask — same pipeline (guardrails → memories →
+    retrieval → context build), only generation is streamed.
 
     SSE events emitted in order:
       data: {"type": "token",   "content": "..."}   — one per LLM token
       data: {"type": "sources", "sources": [...]}    — after last token
-      data: {"type": "done",    "trace_id": "...", "latency_ms": N}
+      data: {"type": "done",    "trace_id", "latency_ms", "no_results",
+             "guardrail_rejected", "retrieval_quality"}
       data: {"type": "error",   "message": "..."}    — only on failure
     """
     trace_id: str = getattr(request.state, "trace_id", new_trace_id())
+    user_id: str = request.headers.get("X-User-ID", "anonymous")
     tier_config = _resolve_tier(request)
+
+    # Same pre-flight gates as /ask — checked before the stream opens so the
+    # client gets a real HTTP status instead of an SSE error event.
+    rate_result = ask_rate_limiter.check(user_id, trace_id)
+    if not rate_result.allowed:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "RATE_LIMITED",
+                "message": f"Too many requests. Try again in {rate_result.retry_after} seconds.",
+                "retry_after": rate_result.retry_after,
+            },
+            headers={"Retry-After": str(rate_result.retry_after)},
+        )
+
+    budget = cost_controller.check_budget(user_id, trace_id)
+    if not budget["allowed"]:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "BUDGET_EXCEEDED",
+                "message": (
+                    f"Daily token budget exceeded. Resets at midnight UTC. "
+                    f"Used: {budget['used_today']}/{budget['budget']} tokens."
+                ),
+                "reset_at": budget["reset_at"],
+            },
+        )
 
     async def generate():
         t0 = time.perf_counter()
         try:
             from core.llm_client import stream as llm_stream
-            from rag.rag_interface import (
-                NO_RESULTS_ANSWER,
-                compute_retrieval_quality,
-            )
-            from rag.rag_interface import retrieve as rag_retrieve
+            from core.prompt_registry import PromptRegistry
+            from rag.rag_interface import NO_RESULTS_ANSWER, prepare_ask
 
-            chunks: list[dict] = await rag_retrieve(
-                body.query, body.top_k, body.strategy, tier_config=tier_config
+            prep = await prepare_ask(
+                body.query,
+                history=body.history,
+                user_id=user_id if user_id != "anonymous" else None,
+                trace_id=trace_id,
+                tier_config=tier_config,
             )
-            valid_chunks = [c for c in chunks if "error" not in c]
-            quality = compute_retrieval_quality(valid_chunks)
 
-            # No relevant chunks: same honest short-circuit as the non-streaming
-            # ask() path — never hand the LLM an empty context to hallucinate from.
-            if not valid_chunks:
-                yield _sse_event({"type": "token", "content": NO_RESULTS_ANSWER})
-                yield _sse_event({"type": "sources", "sources": []})
+            def _done_event(no_results: bool, guardrail_rejected: bool, quality: dict) -> str:
                 latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-                yield _sse_event(
+                return _sse_event(
                     {
                         "type": "done",
                         "trace_id": trace_id,
                         "latency_ms": latency_ms,
-                        "no_results": True,
+                        "no_results": no_results,
+                        "guardrail_rejected": guardrail_rejected,
                         "retrieval_quality": quality,
                     }
                 )
+
+            if prep["status"] == "guardrail_rejected":
+                yield _sse_event({"type": "token", "content": prep["reason"]})
+                yield _sse_event({"type": "sources", "sources": []})
+                yield _done_event(False, True, prep["quality"])
                 return
 
-            # Build plain-text context from retrieved dicts
-            context_parts = [
-                f"--- Document {i + 1} ---\n{chunk.get('content', '')}"
-                for i, chunk in enumerate(valid_chunks)
-            ]
-            context_text = "\n\n".join(context_parts)
-            prompt = (
-                f"Based on the following documents, answer: {body.query}\n\n"
-                f"{context_text}\n\nANSWER:"
+            # No relevant chunks: same honest short-circuit as the non-streaming
+            # ask() path — never hand the LLM an empty context to hallucinate from.
+            if prep["status"] == "no_results":
+                yield _sse_event({"type": "token", "content": NO_RESULTS_ANSWER})
+                yield _sse_event({"type": "sources", "sources": []})
+                yield _done_event(True, False, prep["quality"])
+                return
+
+            # Same "qa" prompt as the non-streaming generation step
+            qa_template = PromptRegistry.get("qa")
+            prompt = PromptRegistry.render_user(
+                "qa", context=prep["gen_context"], question=prep["sanitized_query"]
             )
 
             # Stream LLM tokens one by one
-            async for token in llm_stream(prompt, trace_id=trace_id, tier_config=tier_config):
+            async for token in llm_stream(
+                prompt, system=qa_template.system, trace_id=trace_id, tier_config=tier_config
+            ):
                 yield _sse_event({"type": "token", "content": token})
 
             # Sources arrive after the last token — user sees answer first, sources below
@@ -462,21 +499,12 @@ async def ask_stream(body: AskRequest, request: Request) -> StreamingResponse:
                     "content": c.get("content", ""),
                     "score": c.get("score"),
                     "metadata": c.get("metadata", {}),
+                    "citation_id": c.get("citation_id"),
                 }
-                for c in valid_chunks
+                for c in prep["used_chunks"]
             ]
             yield _sse_event({"type": "sources", "sources": sources})
-
-            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-            yield _sse_event(
-                {
-                    "type": "done",
-                    "trace_id": trace_id,
-                    "latency_ms": latency_ms,
-                    "no_results": False,
-                    "retrieval_quality": quality,
-                }
-            )
+            yield _done_event(False, False, prep["quality"])
 
         except Exception as exc:
             logger.error(

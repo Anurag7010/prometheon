@@ -10,6 +10,7 @@ export type SSEEvent =
       traceId: string
       latencyMs: number
       noResults?: boolean
+      guardrailRejected?: boolean
       retrievalQuality?: RetrievalQuality
     }
   | { type: 'error'; message: string }
@@ -111,6 +112,9 @@ export class SSEParser {
           traceId: typeof data['trace_id'] === 'string' ? data['trace_id'] : '',
           latencyMs: typeof data['latency_ms'] === 'number' ? data['latency_ms'] : 0,
           ...(typeof data['no_results'] === 'boolean' ? { noResults: data['no_results'] } : {}),
+          ...(typeof data['guardrail_rejected'] === 'boolean'
+            ? { guardrailRejected: data['guardrail_rejected'] }
+            : {}),
           ...(retrievalQuality ? { retrievalQuality } : {}),
         }
       }
