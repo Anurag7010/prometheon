@@ -248,6 +248,15 @@ NEXT_PUBLIC_APP_URL=<vercel-url>, LOG_LEVEL=warn
 - Single uvicorn worker (ChromaDB file locking)
 - Container runs as non-root UID 1000 (HF Spaces requirement; HF_HOME=/app/.cache/huggingface)
 - MCP server only works locally (stdio transport, not exposed)
+- HF Spaces' front-door proxy reflects any `Origin` header in `Access-Control-Allow-Origin`
+  (visible via `x-proxied-host`/`x-proxied-replica`/`x-proxied-path` response headers),
+  overriding the app's own single-origin `CORSMiddleware` allowlist (`core/production_config.py`).
+  Confirmed on 2026-07-04: `production-smoke-test.sh` check #5 (CORS rejects evil.com) fails
+  on HF Spaces even though the FastAPI CORS config is correctly locked to `FRONTEND_URL`.
+  Not exploitable in practice — the real auth boundary is the `X-API-Key` middleware
+  (`api/app.py`), which still 401s any request without the correct key regardless of
+  Origin, and browser session cookies are scoped to the Vercel domain, never sent to the
+  HF Space. Would need to move off HF Spaces (e.g. to Railway) to get strict CORS enforcement.
 
 ## Framework Decisions (After Day 14)
 
