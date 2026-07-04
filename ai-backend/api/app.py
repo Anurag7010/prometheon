@@ -41,14 +41,14 @@ app = FastAPI(
 
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# Allow Next.js dev server. In production, restrict to the actual frontend domain.
+# Origins come from production_config: localhost in development, FRONTEND_URL
+# in production (get_config raises if FRONTEND_URL is unset). Never "*".
+
+from core.production_config import get_config  # noqa: E402
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=get_config().CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

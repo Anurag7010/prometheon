@@ -31,7 +31,6 @@ export function ConversationSidebar({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const submittingRef = useRef(false)
 
   const loadConversations = useCallback(async () => {
     try {
@@ -50,12 +49,9 @@ export function ConversationSidebar({
     }
   }, [])
 
-  async function commitRename(id: string) {
-    if (submittingRef.current) return  // guard against double-fire on blur after Enter
-    submittingRef.current = true
+  const commitRename = useCallback(async (id: string) => {
     const trimmed = renameValue.trim()
     setRenamingId(null)
-    submittingRef.current = false
     if (!trimmed) return
     const token = getAccessToken()
     await fetch(`/api/conversations/${id}`, {
@@ -67,7 +63,7 @@ export function ConversationSidebar({
       body: JSON.stringify({ title: trimmed }),
     })
     setConversations(prev => prev.map(c => c.id === id ? { ...c, title: trimmed } : c))
-  }
+  }, [renameValue])
 
   useEffect(() => {
     loadConversations()
@@ -114,10 +110,8 @@ export function ConversationSidebar({
                         onChange={e => setRenameValue(e.target.value)}
                         onBlur={() => commitRename(convo.id)}
                         onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()  // prevents blur from firing after Enter
-                            commitRename(convo.id)
-                          }
+                          // Enter commits via onBlur — a single commit path, no double-fire
+                          if (e.key === 'Enter') e.currentTarget.blur()
                           if (e.key === 'Escape') setRenamingId(null)
                         }}
                         className="flex-1 w-full bg-transparent text-sm text-parchment outline-none border-b border-ember/60 pb-0.5 px-3 py-2"

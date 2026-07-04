@@ -150,7 +150,18 @@ Three interconnected systems:
   - Dual ChromaDB collections: "langchain" (OpenAI embeddings), "langchain_hf" (HuggingFace)
   - Ingest writes to both collections so all tiers can retrieve documents
   - Evals always use GPT-4o as judge regardless of tier (model_override path in llm_client)
-- Next: Day 17 — Chat UI + Agent UI Polish
+- Day 19 (Phase 5): Deployment — COMPLETE
+  - ai-backend/Dockerfile: python:3.11-slim + poppler, HuggingFace model pre-baked into image, single uvicorn worker, --timeout-keep-alive 120 for SSE
+  - ai-backend/.dockerignore: excludes .env, venv, chroma_db, external/ (29M), tests, docs
+  - api/app.py CORS now driven by production_config.get_config().CORS_ORIGINS (FRONTEND_URL in prod, localhost in dev)
+  - docker-compose.yml at project root: postgres:15-alpine + ai-backend with chromadata volume
+  - ai-backend/railway.toml + ai-backend/DEPLOY.md: Railway deployment (Dockerfile builder, /health healthcheck, volume at /app/chroma_db)
+  - web-app/next.config.ts: security headers (HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy), poweredByHeader off — turbopack config untouched
+  - web-app/DEPLOY.md: Supabase + Vercel steps (drizzle-kit push — no migrations dir, env var table)
+  - scripts/production-smoke-test.sh: 12-check post-deploy verification (health, HSTS, CORS, register, auth, ask, agent, SSE)
+  - docs/monitoring.md: UptimeRobot setup for backend /health + frontend
+  - Fixed 3 pre-existing ESLint errors: eqeqeq (DashboardClient), ref-in-render (ConversationSidebar — rename commit now single-path via blur), setState-in-effect (AppShell)
+- Next: Go live — follow ai-backend/DEPLOY.md then web-app/DEPLOY.md
 
 ## System Capabilities (End of Phase 4)
 
@@ -189,7 +200,55 @@ Three interconnected systems:
 - Rate limiter and cost controller are in-memory only
 - ChromaDB is local file-based — not suitable for multi-instance deployment
 - Auth tokens not forwarded to MCP server
-- No deployment pipeline yet (Phase 5)
+
+## Deployment
+
+### Infrastructure
+- Python backend: Railway (Dockerfile, persistent volume for ChromaDB)
+- Next.js frontend: Vercel
+- PostgreSQL: Supabase
+- ChromaDB: Railway persistent volume at /app/chroma_db
+- Uptime monitoring: UptimeRobot (5-min interval)
+
+### Tiered API Access
+- Owner (rautanurag9@gmail.com): OpenAI GPT-4o + text-embedding-3-small
+- Free tier (everyone else): Groq llama-3.3-70b-versatile + HuggingFace all-MiniLM-L6-v2
+- Dual ChromaDB collections: "langchain" (OpenAI), "langchain_hf" (HuggingFace)
+- Evals always use GPT-4o as judge regardless of user tier
+
+### Production Environment Variables
+
+**Railway (Python backend):**
+OPENAI_API_KEY, GROQ_API_KEY, TAVILY_API_KEY, OWNER_EMAIL,
+MODEL_NAME, FAST_MODEL, TEMPERATURE, MAX_TOKENS,
+LOG_LEVEL=WARNING, ENVIRONMENT=production,
+FRONTEND_URL=<vercel-url>, INTERNAL_API_KEY=<random-hex>,
+RELEVANCE_THRESHOLD, MAX_QUERY_CHARS
+
+**Vercel (Next.js):**
+DATABASE_URL=<supabase-url>, JWT_SECRET, JWT_REFRESH_SECRET,
+NEXT_PUBLIC_AI_BACKEND_URL=<railway-url>, AI_BACKEND_URL=<railway-url>,
+AI_BACKEND_API_KEY=<matches-INTERNAL_API_KEY>,
+NEXT_PUBLIC_APP_URL=<vercel-url>, LOG_LEVEL=warn
+
+### Deployment Steps (abbreviated)
+1. Create Supabase project → get DATABASE_URL
+2. Run drizzle-kit push against Supabase
+3. Deploy ai-backend to Railway with Dockerfile
+4. Add Railway volume at /app/chroma_db
+5. Set all Railway env vars
+6. Deploy web-app to Vercel
+7. Set all Vercel env vars
+8. Set FRONTEND_URL on Railway → redeploy
+9. Register owner account
+10. Run production smoke test (scripts/production-smoke-test.sh)
+11. Configure UptimeRobot monitors
+
+### Known Production Limitations
+- Rate limiter resets on Railway restart (in-memory)
+- Single uvicorn worker (ChromaDB file locking)
+- Railway free tier sleeps after 30min inactivity
+- MCP server only works locally (stdio transport, not exposed)
 
 ## Framework Decisions (After Day 14)
 

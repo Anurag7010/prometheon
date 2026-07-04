@@ -114,7 +114,7 @@ export function DashboardClient({
       label: 'Document Index',
     },
     {
-      text: aiStats?.cacheHitRate != null
+      text: typeof aiStats?.cacheHitRate === 'number'
         ? `Cache hit rate: ${((aiStats?.cacheHitRate ?? 0) * 100).toFixed(0)}% — your queries are lightning fast`
         : 'Cache metrics will appear after your first queries',
       label: 'Cache Performance',

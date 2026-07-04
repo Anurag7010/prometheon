@@ -30,9 +30,9 @@ export function AppShell({ email, children }: AppShellProps) {
     if (authLoading) return
 
     const localState = getLocalOnboardingState()
-    // Fast path: localStorage says complete — no need to hit the server
+    // Fast path: localStorage says complete — no need to hit the server.
+    // State already starts false, so no setState needed here.
     if (localState.step === 'complete') {
-      setShowOnboarding(false)
       return
     }
     // Verify server state — catches the case where localStorage was cleared
