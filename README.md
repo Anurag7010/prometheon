@@ -1,10 +1,10 @@
 <div align="center">
 
-# 🔥 PrometheonAI
+# PrometheonAI
 
 **A production-style RAG + agent platform — upload your documents, get grounded, cited answers.**
 
-[**Live Demo**](https://prometheon-five.vercel.app) · [Architecture](ai-backend/docs/architecture.md) · [Eval Methodology](ai-backend/docs/eval-results-phase4.md)
+[**Live Demo**](https://prometheon-five.vercel.app) · [Architecture](ai-backend/docs/architecture.md) · [Eval Harness](ai-backend/evals)
 
 </div>
 
@@ -41,14 +41,14 @@ Two things about the free demo, stated honestly upfront:
 
 - **RAG pipeline** — PDF ingestion (including OCR for embedded figures/tables via `unstructured`), semantic + multi-query retrieval, score-threshold filtering, token-aware context assembly, inline source citations
 - **Honest no-results handling** — when retrieval finds nothing relevant, the system says so explicitly instead of letting the LLM improvise an answer with no grounding
-- **ReAct agent with tools** — document search, document metadata, cross-document comparison, live web search (Tavily), and a sandboxed calculator; full step-by-step reasoning trace surfaced in the UI, not hidden
+- **ReAct agent with tools** — document search, document metadata, cross-document comparison, and live web search (Tavily); full step-by-step reasoning trace surfaced in the UI, not hidden
 - **Tiered LLM routing** — the project owner's account runs on OpenAI GPT-4o; every other account runs on Groq's `llama-3.3-70b` + a local HuggingFace embedding model, entirely free to operate at scale
 - **Guardrails** — input sanitization against common prompt-injection patterns, PII stripping on output, an off-topic check before the LLM is invoked at all
 - **Memory** — short-term conversation windowing (token-aware) plus a long-term per-user fact store (embedded, deduplicated, user-viewable and user-deletable in Settings)
 - **Auth** — real JWT sessions (short-lived access token + HttpOnly refresh cookie), bcrypt password hashing, timing-attack-resistant login
 - **Observability** — structured JSON logging, distributed tracing, log-aggregated metrics feeding the live dashboard (query volume, latency, cache hit rate, cost)
 - **Production hardening** — per-user rate limiting, a daily token budget, a concurrency-limited request queue, and graceful degradation in the UI when the backend is temporarily unreachable
-- **Evals** — an LLM-as-judge harness (GPT-4o scoring faithfulness/relevance/completeness) over a 20-question dataset spanning factual, inferential, edge-case, and adversarial questions
+- **Evals** — an LLM-as-judge harness (GPT-4o scoring faithfulness/relevance/completeness into a composite) over a 20-question dataset spanning factual, inferential, edge-case, and adversarial questions; usable as a CI gate (non-zero exit below a 0.70 composite) with regression detection against the previous run
 
 ## Architecture
 
@@ -144,10 +144,10 @@ prometheon/
 ├── ai-backend/          Python — RAG pipeline, ReAct agent, guardrails, memory, evals
 │   ├── core/             LLM client, prompt registry, guardrails, config
 │   ├── rag/               Retrieval, context management
-│   ├── agents/            ReAct loop + tools (search, metadata, calculate, web search)
+│   ├── agents/            ReAct loop + tools (doc search, metadata, web search)
 │   ├── observability/    Structured logging, tracing, metrics
 │   ├── evals/             LLM-as-judge harness, eval dataset
-│   └── docs/              Architecture decision records, eval results
+│   └── docs/              Architecture decision records, fine-tuning decision
 └── web-app/              Next.js — full frontend + API layer
     ├── app/                App Router pages + API routes
     ├── components/         UI, features, auth

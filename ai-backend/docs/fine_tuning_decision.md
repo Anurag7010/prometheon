@@ -14,7 +14,7 @@ Should we fine-tune a base LLM to improve our AI product's answer quality?
 
 ### What our quality problems actually are
 
-After Phase 3 evaluation (see docs/eval-results-phase3.md):
+From evaluation (see the eval harness in [`../evals/`](../evals)):
 
 - Primary issue: retrieval returning low-relevance chunks → fixed with score threshold
 - Secondary issue: LLM not following output format consistently → fixed with output validation + fallback chain
@@ -37,7 +37,7 @@ None of these are solvable by fine-tuning.
    - Our prompts can be updated in minutes; retraining takes days
 
 4. Prompting already works
-   - The fallback chain + output validation in Phase 3 achieves consistent output format
+   - The fallback chain + output validation achieves consistent output format
    - The guardrails achieve domain restriction
    - These were the two strongest fine-tuning arguments — both solved without fine-tuning
 
