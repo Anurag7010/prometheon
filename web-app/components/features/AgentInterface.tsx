@@ -165,7 +165,10 @@ export default function AgentInterface() {
       {/* Main content */}
       <div className="flex-1 overflow-y-auto">
         {steps.length === 0 && state.status === 'idle' ? (
-          <div className="flex items-center justify-center h-full">
+          /* min-h-full (not h-full) — see ChatInterface.tsx for why: prevents
+             the flame icon from clipping off the top of the scroll region
+             on short mobile viewports. */
+          <div className="flex items-center justify-center min-h-full py-10">
             <div className="max-w-md w-full px-6 text-center">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}

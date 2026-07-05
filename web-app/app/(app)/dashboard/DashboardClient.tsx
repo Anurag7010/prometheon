@@ -212,7 +212,7 @@ export function DashboardClient({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
         {/* Widget 1 — AI Insights Carousel */}
         <Widget index={1}>
-          <div className="rounded-2xl bg-black border border-stone-mid/40 relative overflow-hidden min-h-[320px] flex flex-col">
+          <div className="rounded-2xl bg-black border border-stone-mid/40 relative overflow-hidden min-h-[220px] md:min-h-[320px] flex flex-col">
             <div
               className="absolute inset-0 opacity-30"
               style={{
@@ -268,7 +268,7 @@ export function DashboardClient({
 
         {/* Widget 2 — Knowledge Overview */}
         <Widget index={2}>
-          <SpotlightCard className="rounded-2xl bg-forge-dark/60 border border-stone-mid/40 p-6 h-full min-h-[320px]">
+          <SpotlightCard className="rounded-2xl bg-forge-dark/60 border border-stone-mid/40 p-6 h-full min-h-[220px] md:min-h-[320px]">
             <p className="text-sm font-medium text-parchment mb-1">Knowledge Overview</p>
             <p className="text-xs text-ash-gray mb-6">Document intelligence at a glance</p>
 
@@ -314,7 +314,7 @@ export function DashboardClient({
 
         {/* Widget 3 — Query Volume / Budget */}
         <Widget index={3}>
-          <SpotlightCard className="rounded-2xl bg-forge-dark/60 border border-stone-mid/40 p-6 h-full min-h-[320px]">
+          <SpotlightCard className="rounded-2xl bg-forge-dark/60 border border-stone-mid/40 p-6 h-full min-h-[220px] md:min-h-[320px]">
             <p className="text-sm font-medium text-parchment mb-1">Query Volume</p>
             <p className="text-xs text-ash-gray mb-6">Daily usage and budget</p>
 

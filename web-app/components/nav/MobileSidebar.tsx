@@ -73,6 +73,15 @@ export function MobileSidebar({ email }: { email: string }) {
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open])
+
   return (
     <>
       {/* Top bar — visible on mobile */}
@@ -112,8 +121,10 @@ export function MobileSidebar({ email }: { email: string }) {
           open ? 'translate-x-0' : '-translate-x-full',
         )}
         role="dialog"
-        aria-modal="true"
+        aria-modal={open || undefined}
+        aria-hidden={!open}
         aria-label="Navigation menu"
+        inert={!open || undefined}
       >
         {/* Header */}
         <div className="flex h-14 items-center justify-between border-b border-stone-mid/30 px-4">
