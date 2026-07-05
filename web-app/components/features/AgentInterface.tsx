@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useAgent } from '@/hooks'
 import { AgentStepCard } from '@/components/agent/AgentStepCard'
+import { MarkdownMessage } from '@/components/chat/MarkdownMessage'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Spinner } from '@/components/ui'
 import { cn } from '@/lib/cn'
@@ -277,6 +278,23 @@ export default function AgentInterface() {
                 )}
               </div>
             </div>
+
+            {/* Final answer. On the owner tier the model stops cleanly and the
+                answer rides inside a final step card. On the free tier it
+                usually comes from the tools-less fallback (max_iterations /
+                deadline) with no final step — so render the top-level answer
+                here whenever no step already carries it, otherwise it would be
+                reachable only via "Copy answer" and invisible on screen. */}
+            {state.status === 'success' &&
+              state.data.answer &&
+              !steps.some((s) => s.isFinal) && (
+                <div className="mt-6">
+                  <p className="text-ash-gray text-[10px] tracking-widest uppercase mb-3">Answer</p>
+                  <div className="rounded-lg bg-ember/5 border border-ember/20 px-4 py-3">
+                    <MarkdownMessage content={state.data.answer} />
+                  </div>
+                </div>
+              )}
 
             {state.status === 'error' && (
               <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
