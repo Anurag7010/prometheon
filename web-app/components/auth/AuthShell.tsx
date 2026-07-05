@@ -90,9 +90,9 @@ function StepItem({ phase, active }: { phase: Phase; active?: boolean }) {
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-[100dvh] w-full bg-ember-black p-2 lg:h-[100dvh] lg:overflow-hidden lg:p-3">
-      {/* Left — brand hero (desktop only) */}
-      <aside className="relative hidden overflow-hidden rounded-3xl lg:flex lg:w-[52%] lg:flex-col lg:justify-end">
+    <div className="flex min-h-[100dvh] w-full bg-ember-black lg:h-[100dvh] lg:overflow-hidden">
+      {/* Left — brand hero (desktop only), full-bleed */}
+      <aside className="relative hidden overflow-hidden lg:flex lg:w-[55%] lg:flex-col lg:justify-end">
         <video
           className="absolute inset-0 h-full w-full object-cover"
           poster="/prometheon-feature-card.jpeg"

@@ -62,6 +62,9 @@ export function AuthField({
             "w-full rounded-xl border bg-forge-dark/80 py-3 pl-11 text-sm text-parchment placeholder-ash-gray outline-none transition-all duration-200",
             passwordToggle ? "pr-11" : "pr-4",
             "focus:border-ember/60 focus:bg-forge-dark focus:shadow-[0_0_0_3px_rgba(212,87,42,0.15)]",
+            // Keep browser autofill on-theme — Chrome otherwise paints inputs
+            // near-white. The inset shadow masks the default autofill background.
+            "autofill:shadow-[inset_0_0_0_1000px_#232830] autofill:[-webkit-text-fill-color:#EDE8E0] autofill:caret-parchment",
             error
               ? "border-error-500/60"
               : "border-stone-mid/40 hover:border-stone-mid/60",
