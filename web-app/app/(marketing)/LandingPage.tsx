@@ -307,7 +307,7 @@ function AboutSection() {
                   className: "font-serif italic text-ember",
                 },
                 {
-                  text: "gives you organzations the power to read, reason, and remember.",
+                  text: "gives your organization the power to read, reason, and remember.",
                   className: "text-parchment font-normal",
                 },
               ]}
@@ -599,7 +599,7 @@ function InnovationSection() {
               <p className="text-ash-gray text-sm leading-relaxed">
                 When you submit a query, PrometheonAI does not keyword-search
                 your documents. It converts your question into a semantic vector
-                — a mathematical representation of meaning and finds the
+                — a mathematical representation of meaning — and finds the
                 passages in your document library that are most conceptually
                 relevant, regardless of exact wording.
               </p>
@@ -640,7 +640,7 @@ function ServicesSection() {
       tag: "Research",
       title: "Literature and document synthesis",
       description:
-        "Upload a library of research papers, reports, or case files. Ask cross-document questions. PrometheonAI reads across all of  them simultaneously and synthesizes a grounded answer — with citations to every source it drew from.",
+        "Upload a library of research papers, reports, or case files. Ask cross-document questions. PrometheonAI reads across all of them simultaneously and synthesizes a grounded answer — with citations to every source it drew from.",
     },
     {
       tag: "Operations",
@@ -787,7 +787,7 @@ function Footer() {
       {/* Bottom bar */}
       <div className="border-t border-stone-mid/20 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-xs">
-          &copy; 2024 PrometheonAI — Knowledge, within reach.
+          &copy; 2026 PrometheonAI — Knowledge, within reach.
         </p>
         <div className="flex items-center gap-3">
           {[GithubIcon, TwitterIcon, LinkedinIcon].map((Icon, i) => (
