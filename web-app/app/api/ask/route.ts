@@ -16,6 +16,11 @@ import { getConversationMessages, addMessage } from '@/db/repositories/messages'
 import { findConversationById, updateConversationTitle } from '@/db/repositories/conversations'
 import { MAX_QUERY_LENGTH } from '@/lib/constants'
 
+// /ask auto-routes complex queries to the ReAct agent, which can make ~9
+// sequential LLM calls on the free (Groq) tier. Match the agent route's budget
+// so a long agent-routed answer doesn't get cut off by Vercel's default limit.
+export const maxDuration = 60
+
 const AskSchema = z.object({
   query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
   topK: z.number().int().min(1).max(20).optional().default(5),

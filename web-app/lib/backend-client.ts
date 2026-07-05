@@ -239,6 +239,9 @@ class BackendClient {
         traceId: options.traceId,
         userId: options.userId,
         userEmail: options.userEmail,
+        // /ask auto-routes complex queries to the ReAct agent, so it inherits
+        // the same multi-call latency profile as runAgent — same budget.
+        timeoutMs: 55_000,
       })
       return toAskResponse(raw)
     } catch (error) {
@@ -377,6 +380,12 @@ class BackendClient {
       traceId: options.traceId,
       userId: options.userId,
       userEmail: options.userEmail,
+      // The ReAct agent makes up to ~9 sequential LLM calls per run. On the
+      // free (Groq) tier under load these can total well past the default 30s,
+      // which aborted the fetch and surfaced as a 500 even though the backend
+      // was about to return a valid answer. Give it room; must stay under the
+      // route's maxDuration so Vercel doesn't kill the function first.
+      timeoutMs: 55_000,
     })
     return toAgentRunResponse(raw)
   }

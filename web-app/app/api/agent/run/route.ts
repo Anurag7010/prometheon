@@ -13,6 +13,12 @@ import { queriesRepository } from '@/db'
 import { backendClient } from '@/lib/backend-client'
 import { MAX_QUERY_LENGTH } from '@/lib/constants'
 
+// The agent makes up to ~9 sequential LLM calls; on the free (Groq) tier a
+// multi-tool run can take ~30-50s. Without this, the route inherits Vercel's
+// low default function timeout and 500s on long runs. 60s is the Hobby-plan
+// ceiling and comfortably covers the 55s backend-client budget.
+export const maxDuration = 60
+
 const AgentRunSchema = z.object({
   query: z.string().min(1).max(MAX_QUERY_LENGTH),
   history: z.array(z.object({
